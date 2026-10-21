@@ -1,0 +1,3 @@
+DETERMINISTIC STATE Feasible 66 independent checks · 0 violations FINISH · GUESTS ARRIVE 6:50 PM deadline 7:00 PM · 10 min slack BUDGET $82 / $100 $0 committed · $82 planned UTILIZATION 37% Alex 50% · Sam 31% · Leila 31% EXCLUDED None Every task is scheduled
+revisions before confirm: 1
+Plan B ready — r1 4 tasks changed · validated 65 checks · finishes 5:55 PM (5 min slack) · $86 / $100 See before / after Repair stages

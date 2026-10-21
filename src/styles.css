@@ -816,5 +816,5 @@ table.tasks { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
 .bar.is-changed { background: color-mix(in srgb, var(--lane) 15%, #1c1f2a); }
 .bar.is-changed.st-in_progress { background-image: repeating-linear-gradient(45deg, rgba(76, 215, 246, 0.16), rgba(76, 215, 246, 0.16) 6px, transparent 6px, transparent 12px); }
 /* Bars too narrow for a readable word show colour only (the title is in the tooltip and the inspector). */
-@container (max-width: 40px) { .bar-title, .bar-meta { display: none; } }
+@container (max-width: 24px) { .bar-title, .bar-meta { display: none; } }
 .repair-side { overflow: auto; }
