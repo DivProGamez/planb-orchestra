@@ -332,6 +332,32 @@ try {
     await shot(big, '21-settings-1500x900');
   });
 
+  await check('1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped', async () => {
+    await big.setViewportSize({ width: 1230, height: 908 });
+    await nav(big, 'home');
+    await big.waitForTimeout(500); // resize re-render is debounced
+    const r = await big.evaluate(() => {
+      const body = document.querySelector('.preview-body');
+      const card = document.querySelector('.preview').getBoundingClientRect();
+      const tl = document.querySelector('#tl-preview').getBoundingClientRect();
+      const ax = [...document.querySelectorAll('#tl-preview .tl-axis span')].map((e) => e.getBoundingClientRect());
+      const hero = document.querySelector('.hero').getBoundingClientRect();
+      const btn = document.querySelector('.hero-actions .btn').getBoundingClientRect();
+      return {
+        scroll: [body.scrollWidth - body.clientWidth, body.scrollHeight - body.clientHeight],
+        inside: tl.right <= card.right + 0.5 && tl.bottom <= card.bottom + 0.5,
+        overlap: ax.some((a, i) => i > 0 && a.left < ax[i - 1].right),
+        heroGap: hero.bottom - btn.bottom,
+      };
+    });
+    expect(r.scroll[0] <= 1 && r.scroll[1] <= 1, `preview scrolls inside its card (${r.scroll})`);
+    expect(r.inside, 'preview timeline extends past its card');
+    expect(!r.overlap, 'preview time labels overlap');
+    expect(r.heroGap >= 12, `hero button clipped (gap ${r.heroGap}px)`);
+    expect((await spills(big)).length === 0, 'element outside its card on home');
+    await shot(big, '22-home-1230x908');
+  });
+
   const small = await newPage(1280, 720);
   await check('1280×720: restored session fits, compact disclosures visible', async () => {
     await small.goto(base);

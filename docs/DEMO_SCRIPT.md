@@ -8,7 +8,7 @@ exact sequence; if anything differs on recording day, narrate what the screen sh
 1. `npm start`, open http://localhost:5173. If a session is restored, open **Settings & Transparency → Clear saved session**.
 2. Keep **Settings → Review changes before replanning** on (default).
 3. Close notifications. No third-party music; your own voice or silence plus captions.
-4. Optional dry run: `npm test` (80 pass) and `npm run test:smoke` (25 pass).
+4. Optional dry run: `npm test` (80 pass) and `npm run test:smoke` (26 pass).
 
 ## Storyboard
 
@@ -21,7 +21,7 @@ exact sequence; if anything differs on recording day, narrate what the screen sh
 | 0:58–1:20 | Banner → **See before / after**: Plan A marks the tasks that change; Plan B shows *Replaced*, *Reassigned*, *Moved* chips; change map: roast → *Pan-sear chicken thighs* (*Alternative used*, *Equipment down*), *Plate & serve* (*Dependency moved*). Then **Repair Workflow**: six completed stages. | "Every change has a reason code with evidence — not a guessed explanation." |
 | 1:20–1:48 | **Assistant & Copilot**: chip *Advance clock 40 min* (clock 4:40 PM), chip *Sam can't help* → review card → **Apply & replan** (r2, Cook rice → Alex, *Person unavailable*). Type "Leila is running 10 minutes late" → review → apply (r3, still 5:55 PM). | "Consecutive changes in my own words. Started work stays fixed; nobody is invented." |
 | 1:48–2:18 | Press **F5** — same session, r3, 4:40 PM. Assistant chip *Budget is now $80* → review shows *No feasible plan* → **Record & show options** → crisis panel: proven bound "Cheapest valid plan costs $86 ($73 already committed)" and two verified options. **Apply** *Skip "Pick up fresh bread"* → $79 / $80, r4. | "Impossible requests are rejected with the reason, and only options the planner has verified are offered." |
-| 2:18–2:45 | **Undo** in the top bar → r3; open **History & Revisions** (revision timeline + snapshot diff). Cut to terminal: `npm test` (80 pass), `npm run test:smoke` (25 pass). End on **Settings & Transparency** (simulated Alexa+, local rule parser, deterministic engine). | "A simulated Alexa+ experience for trustworthy household orchestration — deterministic, validated, and honest about what it can't do." |
+| 2:18–2:45 | **Undo** in the top bar → r3; open **History & Revisions** (revision timeline + snapshot diff). Cut to terminal: `npm test` (80 pass), `npm run test:smoke` (26 pass). End on **Settings & Transparency** (simulated Alexa+, local rule parser, deterministic engine). | "A simulated Alexa+ experience for trustworthy household orchestration — deterministic, validated, and honest about what it can't do." |
 
 ## Other phrasings that work with the local parser
 

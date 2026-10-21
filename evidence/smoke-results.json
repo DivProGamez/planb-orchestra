@@ -1,7 +1,7 @@
 {
-  "date": "2026-10-21T14:39:42.194Z",
+  "date": "2026-10-21T15:07:06.145Z",
   "browser": "chrome.exe",
-  "passed": 25,
+  "passed": 26,
   "failed": 0,
   "results": [
     {
@@ -78,6 +78,10 @@
     },
     {
       "name": "1500×900 (three-column settings): nothing sticks out of its card on any screen",
+      "status": "PASS"
+    },
+    {
+      "name": "1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped",
       "status": "PASS"
     },
     {

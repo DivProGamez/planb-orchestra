@@ -1,6 +1,6 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T14:39Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T15:07Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
 ## `npm test` (node:test)
 
@@ -36,13 +36,14 @@ PASS  keyboard: D opens the dialog, Escape closes it and dismisses the crisis pa
 PASS  settings & transparency shows parser status, engine facts and preferences
 PASS  1920×1080: every screen fits without page scrolling
 PASS  1500×900 (three-column settings): nothing sticks out of its card on any screen
+PASS  1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped
 PASS  1280×720: restored session fits, compact disclosures visible
 PASS  1024×768 tablet: stacked layout without horizontal page overflow
 PASS  other scenarios build feasible baselines; outing replans a partner leaving
 PASS  API outage does not blank the app (falls back to the local parser)
 PASS  phone 390×844 and tablet 768×1024: home has no horizontal scroll
 PASS  no console errors during the run
-Smoke: 25 passed, 0 failed. Screenshots in evidence/
+Smoke: 26 passed, 0 failed. Screenshots in evidence/
 ```
 
 Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.

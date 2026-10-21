@@ -121,7 +121,7 @@ server/   app.js (Express: /api/health, /api/intent, static), llm-adapter.js, sc
 src/      index.html, styles.css, app.js (controller), views.js (screens), components.js (timeline & primitives), persistence.js
 src/engine/  model, validate, scheduler, shocks, diff, reasons, session, parser, agent
 src/data/scenarios.js   seeded fixtures (deep-frozen)
-tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (25 browser checks)
+tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (26 browser checks)
 docs/     ARCHITECTURE, DEMO_SCRIPT, DEVPOST_SUBMISSION, TEST_REPORT, PRODUCT_FEEDBACK, FRICTION_LOG, COMPETITION_CHECKLIST
 ```
 

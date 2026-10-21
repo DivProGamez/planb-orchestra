@@ -733,3 +733,21 @@ table.tasks { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
 .card-head .pill, .card-head .tag { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .card { overflow: hidden; }
 .hero, .modal { overflow: hidden; }
+/* Clipping cards must not shrink inside the home columns; the column scrolls instead. */
+.home-main > *, .home-side > * { flex-shrink: 0; }
+
+/* Home live preview: the chart fits the card width instead of scrolling inside it. */
+.tl-axis span.axis-end { transform: translateX(-100%); }
+@media (min-width: 761px) {
+  .preview-body .tl { min-width: 0; }
+  .preview { flex: 1 0 auto; }
+  .preview-body { flex: 1 0 auto; overflow: visible; }
+}
+@container (max-width: 30px) { .tl-compact .bar-title { display: none; } }
+.hs .muted { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Scenario tiles: label above value when the tile is too narrow for both on one line. */
+.tile { container-type: inline-size; }
+@container (max-width: 200px) {
+  .tile-facts span { flex-direction: column; justify-content: flex-start; }
+}

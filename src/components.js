@@ -175,7 +175,8 @@ export function renderTimeline(opts) {
     ? { ...base, row: opts.rowH, bar: opts.rowH - (opts.rowH >= 64 ? 20 : opts.rowH >= 44 ? 12 : 8), res: opts.rowH < 44 ? 20 : base.res }
     : base;
   const layout = buildLayout(state, [plan, prevPlan], size);
-  const step = axis.span > 330 ? 60 : 30;
+  // Compact charts sit in narrow cards: hourly labels so neighbouring times never collide.
+  const step = axis.span > (opts.compact ? 150 : 330) ? 60 : 30;
   const ticks = [];
   for (let m = axis.start; m <= axis.end; m += step) ticks.push(m);
 
@@ -260,7 +261,7 @@ export function renderTimeline(opts) {
     <div class="tl-grid">
       <div class="tl-labels" style="height:${layout.height + 34}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
       <div class="tl-main">
-        <div class="tl-axis">${ticks.map((m) => `<span style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}</div>
+        <div class="tl-axis">${ticks.map((m) => `<span ${m === axis.end ? 'class="axis-end" ' : ''}style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}</div>
         <div class="tl-body" style="height:${layout.height}px">
           ${ticks.map((m) => `<div class="tick" style="left:${pct(axis, m)}%"></div>`).join('')}
           ${shades}${resRows}${ghostHtml}${bars}${prevDeadline}${deadline}${now}
