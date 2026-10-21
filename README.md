@@ -39,20 +39,34 @@ real engine.
 
 ## Interface
 
-A full-screen app shell (no page scrolling on desktop ≥ 1100×640; panels scroll internally):
+A desktop app shell designed from the Google Stitch reference screens ("Obsidian Orchestra" tokens), implemented in
+local HTML/CSS/JS — no CDN, web fonts or remote images. Desktop screens fit 1920×1080 and 1440×900 without page
+scrolling; long content scrolls inside its panel.
 
-- **Splash** (1.2–2.5 s): original PlanB mark, progress ring and bar. Its status lines describe the real boot work —
-  loading the engine, validating the three scenarios (it reports the actual number of checks), checking which parser is
-  available, restoring a saved session.
-- **App bar:** logo, Home › scenario breadcrumb with the current revision, both disclosure badges (simulated Alexa+,
-  parser in use), simulation clock, Undo / Restore / New session.
-- **Home dashboard:** scenario cards, a **live preview** (timeline or task table) that re-plans as you change the
-  deadline, budget, helpers or equipment, and the setup form with the list of guarantees the validator checks.
-- **Command center:** conversation dock with per-reply agent steps; KPI strip; recovery banner after each change;
-  the timeline as the centerpiece (rows sized to fill the space, animated task moves, dashed previous positions,
-  moving deadline marker, sweep highlight); crisis panel for impossible requests; tabbed side panel (Changes,
-  Constraints + structured form, History, Agent log).
-- Responsive down to phone width; respects `prefers-reduced-motion`.
+- **Splash:** original PlanB mark with progress ring and bar, shown only while real start-up work runs (validating
+  the three scenarios — it reports the actual number of checks — checking the parser, restoring the session).
+- **Sidebar:** Scenarios & Home · Plan Workspace · Assistant & Copilot · Repair Workflow · Timeline Compare ·
+  History & Revisions · Settings & Transparency, plus the live session card (scenario, revision, clock, validation).
+- **Top bar:** breadcrumb, disclosure pills (simulated Alexa+, deterministic local engine, parser in use), a command
+  box ("Tell PlanB what changed…"), simulation clock, Undo and **Simulate disruption**.
+- **Home:** selected-scenario hero with real baseline stats, scenario cards, a **live preview** that re-plans as you
+  change the deadline, budget, helpers or equipment, and the constraints form.
+- **Plan Workspace:** KPI row, recovery banner, toolbar (viewport, clock), the **timeline canvas** as the centerpiece
+  (avatar lanes, equipment lanes with capacity sub-lanes, animated moves, previous-position outlines, moving deadline,
+  now marker) and a read-only **Task Inspector** (assignment, window, duration, cost, equipment, dependencies,
+  listed fallbacks, and the reason codes for its latest change).
+- **Review before replanning:** every change — typed in the assistant or the command box, picked as a quick command,
+  or entered in the structured form — first shows *what was understood*, the constraint deltas and a dry-run impact.
+  Nothing is committed until **Apply & replan** (the preference can be turned off in Settings). Undo is unchanged.
+- **Assistant & Copilot:** conversation with per-reply agent steps and contextual actions (Before/After, Repair
+  stages, Undo), pending-change panel, plan status and parser status.
+- **Repair Workflow:** the six stages recorded for the latest request, the committed-change ledger and the raw tool log.
+- **Timeline Compare:** pick any two revisions; synchronized Plan A / Plan B timelines (tasks that change are marked in
+  A, kind chips in B), before→after KPIs, and a change map with real reason codes.
+- **History & Revisions:** revision timeline, snapshot inspection (timeline + diff table), rejected and undone requests.
+- **Settings & Transparency:** what is simulated, which parser runs, engine facts, preferences, data storage, shortcuts.
+- Keyboard: `/` focus input, `D` disruption dialog, `Esc` cancel/close. Responsive down to phone width; respects
+  `prefers-reduced-motion` and an in-app reduce-motion preference.
 
 ## What it does (tested — see `docs/TEST_REPORT.md`)
 
@@ -104,10 +118,10 @@ was available — so nothing is claimed about real-model accuracy.
 
 ```
 server/   app.js (Express: /api/health, /api/intent, static), llm-adapter.js, schema.js
-src/      index.html, styles.css, app.js (UI state), components.js (views), persistence.js
+src/      index.html, styles.css, app.js (controller), views.js (screens), components.js (timeline & primitives), persistence.js
 src/engine/  model, validate, scheduler, shocks, diff, reasons, session, parser, agent
 src/data/scenarios.js   seeded fixtures (deep-frozen)
-tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (18 browser checks)
+tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (23 browser checks)
 docs/     ARCHITECTURE, DEMO_SCRIPT, DEVPOST_SUBMISSION, TEST_REPORT, PRODUCT_FEEDBACK, FRICTION_LOG, COMPETITION_CHECKLIST
 ```
 

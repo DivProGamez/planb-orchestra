@@ -1,43 +1,55 @@
 {
-  "date": "2026-10-21T11:26:05.366Z",
+  "date": "2026-10-21T14:28:19.785Z",
   "browser": "chrome.exe",
-  "passed": 18,
+  "passed": 23,
   "failed": 0,
   "results": [
     {
-      "name": "splash reports real boot steps and leaves within 2.5–3 s",
+      "name": "splash shows only real start-up work and reports the validated checks",
       "status": "PASS"
     },
     {
-      "name": "welcome shows three scenario tiles and the simulation label",
+      "name": "home dashboard: scenarios, live preview reacting to constraints, honest labels, no scroll",
       "status": "PASS"
     },
     {
-      "name": "setup form builds a validated baseline plan",
+      "name": "build a validated baseline plan from the hero action",
       "status": "PASS"
     },
     {
-      "name": "first shock (early guests + broken oven) replans with reasons and animation data",
+      "name": "disruption dialog: describe → review (dry run) → confirm → animated Plan B",
       "status": "PASS"
     },
     {
-      "name": "second shock on the same session after advancing the clock",
+      "name": "task inspector shows read-only facts and the reasons for the change",
       "status": "PASS"
     },
     {
-      "name": "refresh restores plan, revisions and clock",
+      "name": "Before / After: synchronized Plan A and Plan B with a change map of real reasons",
       "status": "PASS"
     },
     {
-      "name": "impossible budget is rejected with proven violation and two verified options",
+      "name": "repair workflow shows the six recorded pipeline stages",
       "status": "PASS"
     },
     {
-      "name": "undo goes back one revision; restore returns to the original",
+      "name": "assistant: agent steps, contextual actions, then a second change confirmed in chat",
       "status": "PASS"
     },
     {
-      "name": "structured change form uses the same engine path",
+      "name": "refresh restores plan, revisions, clock and screen",
+      "status": "PASS"
+    },
+    {
+      "name": "impossible budget: review shows no feasible plan; nothing committed; verified options apply",
+      "status": "PASS"
+    },
+    {
+      "name": "undo goes back one revision; restore returns to the original (History screen)",
+      "status": "PASS"
+    },
+    {
+      "name": "structured change in the dialog goes through review and the same engine path",
       "status": "PASS"
     },
     {
@@ -45,15 +57,23 @@
       "status": "PASS"
     },
     {
-      "name": "free-form requests: equipment breaks, then works again (original version restored)",
+      "name": "free-form: oven breaks, then is fixed (original version restored); leave-at time understood",
       "status": "PASS"
     },
     {
-      "name": "keyboard: Escape dismisses the infeasible panel",
+      "name": "keyboard: D opens the dialog, Escape closes it and dismisses the crisis panel",
       "status": "PASS"
     },
     {
-      "name": "1280×720: restored session fits the viewport with no page scroll",
+      "name": "settings & transparency shows parser status, engine facts and preferences",
+      "status": "PASS"
+    },
+    {
+      "name": "1920×1080: every screen fits without page scrolling",
+      "status": "PASS"
+    },
+    {
+      "name": "1280×720: restored session fits, compact disclosures visible",
       "status": "PASS"
     },
     {
@@ -61,15 +81,15 @@
       "status": "PASS"
     },
     {
-      "name": "other scenarios build feasible baselines",
+      "name": "other scenarios build feasible baselines; outing replans a partner leaving",
       "status": "PASS"
     },
     {
-      "name": "API outage does not blank the app (falls back to local parser)",
+      "name": "API outage does not blank the app (falls back to the local parser)",
       "status": "PASS"
     },
     {
-      "name": "phone 390×844 and tablet 768×1024: landing and setup fit without horizontal scroll",
+      "name": "phone 390×844 and tablet 768×1024: home has no horizontal scroll",
       "status": "PASS"
     },
     {

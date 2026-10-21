@@ -1,8 +1,7 @@
-// View functions: pure (data → HTML string). All dynamic text is escaped.
+// Shared view primitives: escaping, original SVG icons, badges, and the timeline canvas.
+// Pure functions (data → HTML string). Every figure shown comes from engine state.
 
-import {
-  formatClock, formatDuration, formatSigned, personName, resourceName,
-} from './engine/model.js';
+import { formatClock, formatDuration, formatSigned, personName, resourceName } from './engine/model.js';
 import { REASONS, reasonLabel } from './engine/reasons.js';
 import { liveStatus } from './engine/session.js';
 
@@ -10,26 +9,56 @@ export function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-const KIND_CLASS = {
+export const KIND_CLASS = {
   Moved: 'k-moved', Reassigned: 'k-reassigned', Shortened: 'k-shortened', Lengthened: 'k-lengthened',
   Replaced: 'k-replaced', Removed: 'k-removed', Restored: 'k-restored', Unchanged: 'k-unchanged',
 };
 
-const STATUS_LABEL = {
-  idle: 'Ready', parsing: 'Reading your request…', planning: 'Replanning…', done: 'Plan up to date', failure: 'Needs your attention',
-};
-
-/* ---------- Brand & icons (original SVG) ---------- */
+/* ---------- Brand & icons (original SVG, no icon fonts) ---------- */
 
 /** PlanB mark: a dashed "plan A" route that breaks, and a solid "plan B" curve that reconnects. */
 export function logoSvg(size, uid) {
   return `<svg class="logo" width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
-    <defs><linearGradient id="lg-${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>
-    <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="#0d1a30" stroke="url(#lg-${uid})" stroke-width="2"/>
+    <defs><linearGradient id="lg-${uid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4cd7f6"/><stop offset="1" stop-color="#8083ff"/></linearGradient></defs>
+    <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="#0d1322" stroke="url(#lg-${uid})" stroke-width="2"/>
     <path d="M9 27 H16 L22 14 H31" fill="none" stroke="#f5b041" stroke-width="2.2" stroke-dasharray="2.5 3" stroke-linecap="round" opacity=".85"/>
     <path d="M9 27 C17 27 17.5 21 21 19.5 C24.5 18 25.5 13 31 13" fill="none" stroke="url(#lg-${uid})" stroke-width="3.2" stroke-linecap="round"/>
-    <circle cx="9" cy="27" r="3" fill="#2dd4bf"/><circle cx="31" cy="13" r="3" fill="#5eead4"/>
+    <circle cx="9" cy="27" r="3" fill="#4cd7f6"/><circle cx="31" cy="13" r="3" fill="#c0c1ff"/>
   </svg>`;
+}
+
+const ICONS = {
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  workspace: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 13h6M8 16h9"/>',
+  repair: '<path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/><path d="M9 12l2 2 4-4"/>',
+  compare: '<path d="M7 4v16M17 4v16"/><path d="M3 8h8M13 16h8"/><path d="M9 6l2 2-2 2M15 14l-2 2 2 2"/>',
+  history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>',
+  bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  sparkle: '<path d="M12 3l1.8 4.7L18.5 9.5 13.8 11.3 12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  money: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 10v4M18 10v4"/>',
+  people: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>',
+  box: '<path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/>',
+  flag: '<path d="M5 21V4M5 4h12l-2 4 2 4H5"/>',
+  layers: '<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  play: '<path d="M7 4l13 8-13 8z"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>',
+  eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+};
+
+export function icon(name, size = 18, cls = '') {
+  return `<svg class="ico ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${ICONS[name] || ''}</svg>`;
 }
 
 const SCENARIO_ICONS = {
@@ -44,190 +73,36 @@ export function scenarioIcon(id, size = 22) {
   return `<svg class="s-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-function parserBadge(parser) {
+const PERSON_COLORS = ['#8083ff', '#4cd7f6', '#4edea3', '#f5b041', '#f472b6'];
+export function personColor(scenario, personId) {
+  const i = scenario.people.findIndex((p) => p.id === personId);
+  return PERSON_COLORS[(i < 0 ? 0 : i) % PERSON_COLORS.length];
+}
+
+export function avatar(scenario, personId, size = 32) {
+  const name = personName(scenario, personId);
+  const initials = personId ? name.split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() : '·';
+  const color = personId ? personColor(scenario, personId) : '#6b7a99';
+  return `<span class="avatar" style="--av:${color};width:${size}px;height:${size}px;font-size:${Math.round(size * 0.38)}px" aria-hidden="true">${esc(initials)}</span>`;
+}
+
+export function parserPill(parser, compact = false) {
   return parser.mode === 'llm'
-    ? `<span class="badge badge-accent" title="Natural language is parsed by ${esc(parser.model)} on the server, then schema-validated">Parser: LLM (${esc(parser.model)}) + schema check</span>`
-    : `<span class="badge badge-warn" title="${esc(parser.reason || 'No LLM configured')}"><span class="long">Parser: limited local rules (not an LLM)</span><span class="short">Local rules, not an LLM</span></span>`;
+    ? `<span class="pill pill-ok" title="Free text is parsed by ${esc(parser.model)} on the server, then re-validated against the shock schema"><span class="dot"></span>Parser: LLM ${compact ? '' : `(${esc(parser.model)}) `}+ schema check</span>`
+    : `<span class="pill pill-warn" title="${esc(parser.reason || 'No LLM configured')}"><span class="dot"></span>${compact ? 'Local rules · not an LLM' : 'Parser: local rules (not an LLM)'}</span>`;
 }
 
-/* ---------- App bar ---------- */
-
-export function renderAppBar({ screen, session, head, parser }) {
-  const s = head?.state.scenario;
-  const crumb = session && s ? `
-      <span class="nav-sep" aria-hidden="true">›</span>
-      <button class="nav-btn" data-action="go-workspace" ${screen === 'workspace' ? 'aria-current="page"' : ''}>
-        ${scenarioIcon(session.scenarioId, 18)}<span>${esc(s.name)}</span><span class="rev-pill" title="Current revision">${esc(head.id)}</span>
-      </button>` : '';
-  const controls = screen === 'workspace' && session ? `
-      <div class="clock" aria-label="Simulation clock ${esc(formatClock(s, session.nowMin))}">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        <strong>${esc(formatClock(s, session.nowMin))}</strong>
-      </div>
-      <button class="btn btn-bar" data-action="undo" ${session.revisions.length > 1 ? '' : 'disabled'} title="Undo the last change">↶ Undo</button>
-      <button class="btn btn-bar" data-action="restore" ${session.revisions.length > 1 ? '' : 'disabled'} title="Return to the original plan">Restore</button>
-      <button class="btn btn-bar" data-action="new-session" title="Discard this session and start over">New session</button>` : '';
-  return `
-  <header class="appbar" role="banner">
-    <div class="appbar-brand">
-      ${logoSvg(36, 'bar')}
-      <div><div class="brand-name">PlanB Orchestra</div><div class="brand-sub">Household plan recovery agent</div></div>
-    </div>
-    <nav class="appbar-nav" aria-label="Primary">
-      <button class="nav-btn" data-action="go-home" ${screen === 'home' ? 'aria-current="page"' : ''}>Home</button>${crumb}
-    </nav>
-    <div class="appbar-badges">
-      <span class="badge badge-sim" title="Demo simulation. Not an Amazon product, not connected to any Alexa device or account."><span class="long">Simulated Alexa+ experience · demo</span><span class="short">Simulated Alexa+ demo</span></span>
-      ${parserBadge(parser)}
-    </div>
-    <div class="appbar-session">${controls}</div>
-  </header>`;
+export function reasonBadges(reasons) {
+  return reasons.map((r) => `
+    <li><span class="reason tone-${esc(REASONS[r.code]?.tone || 'info')}" title="${esc(r.code)}">${esc(reasonLabel(r.code))}</span>
+      <span class="evidence">${esc(r.evidence.join(' · '))}</span></li>`).join('');
 }
 
-/* ---------- Home dashboard ---------- */
-
-export function renderHome({ scenarios, home, preview, session, notice }) {
-  const selected = scenarios.find((s) => s.id === home.scenarioId);
-  const list = scenarios.map((s) => {
-    const active = s.id === home.scenarioId;
-    return `
-    <button class="tile ${active ? 'is-active' : ''}" data-action="choose-scenario" data-id="${esc(s.id)}" aria-pressed="${active}">
-      <span class="tile-icon">${scenarioIcon(s.id, 26)}</span>
-      <span class="tile-body">
-        <span class="tile-name">${esc(s.name)}</span>
-        <span class="tile-tag">${esc(s.tagline)}</span>
-        <span class="tile-stats"><span>${s.people.length} people</span><span>${s.tasks.length} tasks</span><span>${esc(formatDuration(s.deadlineMin - s.startMin))}</span><span>$${s.budgetCap}</span></span>
-      </span>
-    </button>`;
-  }).join('');
-  const resume = session ? (() => {
-    const h = session.revisions[session.revisions.length - 1];
-    return `<button class="resume" data-action="go-workspace">
-      <span class="resume-dot" aria-hidden="true"></span>
-      <span><strong>Resume ${esc(h.state.scenario.name)}</strong><span class="muted small"> · ${esc(h.id)} · clock ${esc(formatClock(h.state.scenario, session.nowMin))} · ${session.revisions.length - 1} change${session.revisions.length === 2 ? '' : 's'}</span></span>
-      <span class="resume-go" aria-hidden="true">→</span></button>`;
-  })() : '';
-  return `
-  <main class="home" id="main">
-    <section class="home-col home-list" aria-labelledby="home-title">
-      <div class="home-head">
-        <h1 id="home-title">Plan a household event</h1>
-        <p class="muted">Pick a scenario, adjust the constraints, then build a validated plan. When life changes, tell the agent — it repairs the plan and shows why.</p>
-      </div>
-      ${notice ? `<div class="notice" role="status">${esc(notice)}</div>` : ''}
-      ${resume}
-      <div class="tiles" role="group" aria-label="Scenarios">${list}</div>
-      <ol class="how-mini" aria-label="How it works">
-        <li><span>1</span>Build a feasible plan</li>
-        <li><span>2</span>Say what changed</li>
-        <li><span>3</span>Get a validated Plan B with reasons</li>
-      </ol>
-    </section>
-    <section class="home-col home-preview card" id="home-preview" aria-label="Live preview">
-      ${renderHomePreview(selected, preview, home.tab)}
-    </section>
-    <section class="home-col home-setup card" aria-labelledby="setup-title">
-      ${renderSetupForm(selected, home, session)}
-    </section>
-  </main>`;
-}
-
-export function renderHomePreview(scenario, preview, tab) {
-  const clock = (m) => formatClock(scenario, m);
-  let status;
-  let body;
-  if (preview.ok) {
-    const p = preview.plan;
-    status = `<span class="pill pill-ok">✓ Feasible baseline</span>
-      <span class="pv-facts">${p.validation.checks} checks passed · ends ${esc(clock(p.endMin))} · ${esc(formatDuration(p.slackMin))} slack · $${p.totalCost} / $${preview.state.scenario.budgetCap}</span>`;
-    if (tab === 'tasks') body = renderTaskTable(preview.state.scenario);
-    else {
-      const end = Math.ceil((Math.max(preview.state.scenario.deadlineMin, p.endMin) + 10) / 30) * 30;
-      const axis = { start: preview.state.scenario.startMin, end, span: end - preview.state.scenario.startMin };
-      body = renderGantt({ state: preview.state, plan: p, axis, nowMin: preview.state.scenario.startMin, compact: true, id: 'gantt-preview', title: '', rowH: preview.rowH });
-    }
-  } else {
-    status = '<span class="pill pill-bad">✕ No feasible baseline</span><span class="pv-facts">Adjust the constraints on the right.</span>';
-    body = `<ul class="violations pv-violations">${preview.errors.map((e) => `<li><span class="proof proof-${esc(e.proof || 'proven')}">${e.proof === 'search' ? 'Bounded search' : 'Proven'}</span> ${esc(e.message)}</li>`).join('')}</ul>${tab === 'tasks' ? renderTaskTable(scenario) : ''}`;
-  }
-  return `
-    <div class="pv-head">
-      <div class="pv-title">${scenarioIcon(scenario.id, 22)}<h2>${esc(scenario.name)}</h2><span class="badge badge-live">Live preview</span></div>
-      <div class="seg" role="group" aria-label="Preview view">
-        <button class="seg-btn" data-action="home-tab" data-tab="timeline" aria-pressed="${tab !== 'tasks'}">Timeline</button>
-        <button class="seg-btn" data-action="home-tab" data-tab="tasks" aria-pressed="${tab === 'tasks'}">Tasks</button>
-      </div>
-    </div>
-    <div class="pv-status" role="status" aria-live="polite">${status}</div>
-    <div class="pv-body">${body}</div>
-    <div class="pv-foot">
-      <span class="muted small">Try after building:</span>
-      ${['Guests are arriving an hour early and the oven broke.', 'Alex has to leave at 5 PM.', 'We only have $60 left.', 'The oven works again.'].map((t) => `<span class="say">“${esc(t)}”</span>`).join('')}
-    </div>`;
-}
-
-function renderTaskTable(scenario) {
-  const rows = scenario.tasks.map((t) => `
-    <tr>
-      <td>${esc(t.title)}</td>
-      <td><span class="prio prio-${esc(t.priority)}">${esc(t.priority)}</span></td>
-      <td class="num">${t.durationMin} min${t.compressible && t.minDurationMin < t.durationMin ? `<small> · min ${t.minDurationMin}</small>` : ''}</td>
-      <td class="num">$${t.cost}</td>
-      <td>${esc([...t.resources.map((r) => resourceName(scenario, r)), t.eligiblePeople.length ? '' : 'hands-free'].filter(Boolean).join(', ') || '—')}</td>
-      <td class="small">${esc([...t.dependsOn, ...(t.softDependsOn || [])].map((d) => scenario.tasks.find((x) => x.id === d)?.title).join(', ') || '—')}</td>
-      <td>${t.alternatives.length ? esc(t.alternatives.map((a) => scenario.alternatives.find((x) => x.id === a)?.title).join(', ')) : '—'}</td>
-    </tr>`).join('');
-  return `<div class="table-wrap"><table class="tasks">
-      <thead><tr><th>Task</th><th>Priority</th><th class="num">Duration</th><th class="num">Cost</th><th>Needs</th><th>After</th><th>Listed fallback</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-    <p class="muted small">Only the listed fallbacks can replace a task — the planner never invents helpers, equipment or recipes.</p>`;
-}
-
-function renderSetupForm(scenario, home, session) {
-  const form = home.form;
-  const clock = (m) => formatClock(scenario, m);
-  const people = scenario.people.map((p) => `
-    <label class="check"><input type="checkbox" id="pp-${esc(p.id)}" data-field="person" data-id="${esc(p.id)}" ${form.people[p.id] !== false ? 'checked' : ''}>
-      <span>${esc(p.name)} <small>from ${esc(clock(p.availableFrom))}</small></span></label>`).join('');
-  const resources = scenario.resources.map((r) => `
-    <label class="check"><input type="checkbox" id="rr-${esc(r.id)}" data-field="resource" data-id="${esc(r.id)}" ${form.resources[r.id] !== false ? 'checked' : ''}>
-      <span>${esc(r.name)} <small>×${r.capacity}</small></span></label>`).join('');
-  return `
-    <h2 id="setup-title">Constraints</h2>
-    <form data-form="setup" class="setup-form">
-      <label class="field">
-        <span class="field-row">Deadline · ${esc(scenario.deadlineLabel)} <output data-out="deadline">${esc(clock(form.deadlineMin))}</output></span>
-        <input type="range" id="f-deadline" min="60" max="480" step="15" value="${form.deadlineMin}" data-field="deadline" aria-describedby="deadline-help">
-        <small id="deadline-help" class="muted" data-out="window">Start ${esc(clock(scenario.startMin))} · window ${esc(formatDuration(form.deadlineMin - scenario.startMin))}</small>
-      </label>
-      <label class="field">
-        <span class="field-row">Budget cap</span>
-        <span class="money"><span aria-hidden="true">$</span><input type="number" id="f-budget" min="0" max="1000" step="5" value="${form.budgetCap}" data-field="budget" inputmode="numeric" aria-label="Budget cap in dollars"></span>
-      </label>
-      <div class="field-pair">
-        <fieldset class="field"><legend>Who is helping</legend>${people}</fieldset>
-        <fieldset class="field"><legend>Equipment</legend>${resources}</fieldset>
-      </div>
-      ${home.error ? `<div class="alert alert-bad" role="alert"><strong>No feasible baseline.</strong> ${esc(home.error)}</div>` : ''}
-      <button class="btn btn-primary btn-lg btn-block" type="submit">Build Feasible Plan</button>
-      <div class="guarantees">
-        <h3>Every plan is independently checked for</h3>
-        <ul>
-          <li>Task order and dependencies</li><li>Who is available, and when</li><li>Equipment capacity and outages</li>
-          <li>Budget, including money already spent</li><li>The deadline</li><li>Work already started stays fixed</li>
-        </ul>
-      </div>
-      ${session ? '<p class="muted small text-center">Building replaces your current session. Use “Resume” to go back to it instead.</p>' : ''}
-    </form>
-    <p class="disclosure">Simulated Alexa+-style experience for a hackathon demo. Not affiliated with or endorsed by Amazon. Planning runs locally in your browser.</p>`;
-}
-
-/* ---------- Gantt ---------- */
+/* ---------- Timeline canvas ---------- */
 
 const SIZES = {
-  full: { row: 52, bar: 40, res: 22 },
-  compact: { row: 36, bar: 28, res: 16 },
+  full: { row: 58, bar: 42, res: 30, label: 176 },
+  compact: { row: 38, bar: 28, res: 18, label: 104 },
 };
 
 function packHandsFree(entries) {
@@ -255,6 +130,15 @@ export function buildLayout(state, plans, size = SIZES.full) {
   return { lanes, handsByPlan, resTop, size, height: resTop + s.resources.length * size.res };
 }
 
+/** Row height that makes a chart fill `availablePx` (bounded so bars stay readable). */
+export function fitRowHeight({ state, plans, availablePx, compact, minRow }) {
+  const base = compact ? SIZES.compact : SIZES.full;
+  const lanes = buildLayout(state, plans, base).lanes.reduce((n, l) => n + l.rows, 0);
+  const fixed = 34 + state.scenario.resources.length * base.res + 4;
+  const fitted = Math.floor((availablePx - fixed) / Math.max(1, lanes));
+  return Math.max(minRow ?? base.row, Math.min(compact ? 66 : 104, fitted));
+}
+
 function pct(axis, m) {
   return ((m - axis.start) / axis.span) * 100;
 }
@@ -268,38 +152,60 @@ function barBox(layout, axis, st, planIndex) {
   };
 }
 
+function laneSub(s, lane, axis, clock) {
+  if (lane.kind === 'hands') return 'equipment only';
+  const p = lane.person;
+  if (p.availableTo <= p.availableFrom) return 'not available';
+  const parts = [];
+  if (p.availableFrom > axis.start) parts.push(`from ${clock(p.availableFrom)}`);
+  if (p.availableTo < axis.end) parts.push(`until ${clock(p.availableTo)}`);
+  return parts.join(' · ') || 'available';
+}
+
 /**
- * opts: { state, plan, prevPlan, prevState, axis, nowMin, atMin, selectedTaskId, changed (Map taskId→kind),
- *         ghosts (bool), animate (bool), compact (bool), title, id }
+ * opts: { state, plan, prevPlan, prevState, axis, nowMin, atMin, selectedTaskId, changed (Map taskId→entry),
+ *         ghosts, animate, compact, rowH, id, kindChips, markWillChange, label }
  */
-export function renderGantt(opts) {
-  const { state, plan, prevPlan, axis, nowMin, selectedTaskId, changed = new Map(), ghosts, animate, title, id } = opts;
+export function renderTimeline(opts) {
+  const { state, plan, prevPlan, axis, nowMin, selectedTaskId, changed = new Map(), ghosts, animate, id } = opts;
   const s = state.scenario;
   const clock = (m) => formatClock(s, m);
   const base = opts.compact ? SIZES.compact : SIZES.full;
-  const size = opts.rowH ? { row: opts.rowH, bar: opts.rowH - (opts.rowH >= 60 ? 18 : 12), res: base.res } : base;
+  const size = opts.rowH
+    ? { ...base, row: opts.rowH, bar: opts.rowH - (opts.rowH >= 64 ? 20 : opts.rowH >= 44 ? 12 : 8), res: opts.rowH < 44 ? 20 : base.res }
+    : base;
   const layout = buildLayout(state, [plan, prevPlan], size);
   const step = axis.span > 330 ? 60 : 30;
   const ticks = [];
   for (let m = axis.start; m <= axis.end; m += step) ticks.push(m);
 
-  const laneHtml = layout.lanes.map((lane) => {
+  const shades = layout.lanes.map((lane) => {
     let shade = '';
     if (lane.kind === 'person') {
       const p = lane.person;
       const blocks = [];
       if (p.availableFrom > axis.start) blocks.push([axis.start, Math.min(p.availableFrom, axis.end)]);
       if (p.availableTo < axis.end) blocks.push([Math.max(p.availableTo, axis.start), axis.end]);
-      shade = blocks.map(([a, b]) => `<div class="unavail" style="left:${pct(axis, a)}%;width:${pct(axis, b) - pct(axis, a)}%" title="${esc(p.name)} unavailable ${esc(clock(a))}–${esc(clock(b))}"><span>unavailable</span></div>`).join('');
+      shade = blocks.map(([a, b]) => `<div class="unavail" style="left:${pct(axis, a)}%;width:${pct(axis, b) - pct(axis, a)}%" title="${esc(p.name)} unavailable ${esc(clock(a))}–${esc(clock(b))}">${opts.compact ? '' : '<span>unavailable</span>'}</div>`).join('');
     }
     return `<div class="lane ${lane.kind === 'hands' ? 'lane-hands' : ''}" style="top:${lane.top}px;height:${lane.height}px">${shade}</div>`;
   }).join('');
-  const labels = layout.lanes.map((lane) => `<div class="lane-label" style="top:${lane.top}px;height:${lane.height}px"><span>${esc(lane.label)}</span>${lane.kind === 'person' && lane.person.availableFrom > axis.start ? `<small>from ${esc(clock(lane.person.availableFrom))}</small>` : ''}${lane.kind === 'person' && lane.person.availableTo < axis.end ? `<small>until ${esc(clock(lane.person.availableTo))}</small>` : ''}</div>`).join('')
-    + s.resources.map((r, i) => `<div class="lane-label res-label" style="top:${layout.resTop + i * size.res}px;height:${size.res}px">${esc(r.name)}${r.available ? '' : ' <em>down</em>'}</div>`).join('');
+
+  const labels = layout.lanes.map((lane) => `
+    <div class="lane-label" style="top:${lane.top}px;height:${lane.height}px">
+      ${lane.kind === 'person' ? avatar(s, lane.person.id, opts.compact ? 22 : 32) : `<span class="avatar avatar-hands" style="width:${opts.compact ? 22 : 32}px;height:${opts.compact ? 22 : 32}px">${icon('box', opts.compact ? 12 : 16)}</span>`}
+      <span class="ll-text"><span class="ll-name">${esc(lane.label)}</span>${opts.compact ? '' : `<span class="ll-sub ${lane.kind === 'person' && (lane.person.availableTo < axis.end || lane.person.availableFrom > axis.start) ? 'warn' : ''}">${esc(laneSub(s, lane, axis, clock))}</span>`}</span>
+    </div>`).join('')
+    + s.resources.map((r, i) => `
+    <div class="lane-label res-label" style="top:${layout.resTop + i * size.res}px;height:${size.res}px">
+      ${opts.compact ? '' : icon('box', 13)}<span>${esc(r.name)} <em class="${r.available ? '' : 'down'}">${r.available ? `×${r.capacity}` : 'down'}</em></span>
+    </div>`).join('');
 
   const resRows = s.resources.map((r, i) => {
     const top = layout.resTop + i * size.res;
-    const uses = plan.scheduled.filter((st) => st.resources.includes(r.id)).map((st) => `<div class="res-use" style="left:${pct(axis, st.startMin)}%;width:${pct(axis, st.endMin) - pct(axis, st.startMin)}%" title="${esc(r.name)}: ${esc(st.title)} ${esc(clock(st.startMin))}–${esc(clock(st.endMin))}"></div>`).join('');
+    const list = plan.scheduled.filter((st) => st.resources.includes(r.id));
+    const packed = packHandsFree(list);
+    const uses = list.map((st) => `<div class="res-use" style="left:${pct(axis, st.startMin)}%;width:${pct(axis, st.endMin) - pct(axis, st.startMin)}%;top:${(packed.placement.get(st.taskId) / packed.count) * 100 + 8 / packed.count}%;height:${84 / packed.count}%" title="${esc(r.name)}: ${esc(st.title)} ${esc(clock(st.startMin))}–${esc(clock(st.endMin))}">${opts.compact ? '' : `<span>${esc(st.title)}</span>`}</div>`).join('');
     const down = r.available ? '' : `<div class="res-down" style="left:${pct(axis, opts.atMin ?? axis.start)}%;right:0" title="${esc(r.name)} unavailable"></div>`;
     return `<div class="res-row" style="top:${top}px;height:${size.res}px">${down}${uses}</div>`;
   }).join('');
@@ -308,53 +214,56 @@ export function renderGantt(opts) {
   const bars = plan.scheduled.map((st) => {
     const box = barBox(layout, axis, st, 0);
     const status = liveStatus(st, nowMin);
-    const kind = changed.get(st.taskId);
+    const entry = changed.get(st.taskId);
+    const kind = entry?.kind;
+    const isChanged = kind && kind !== 'Unchanged';
     const prev = prevById.get(st.taskId);
     const from = animate && prev ? barBox(layout, axis, prev, 1) : null;
     const task = s.tasks.find((t) => t.id === st.taskId);
     const cls = [
       'bar', `st-${status}`, `prio-${task?.priority}`, st.variantId !== 'base' ? 'is-alt' : '',
       st.durationMin < st.fullDurationMin ? 'is-compressed' : '', !st.personId ? 'is-hands' : '',
-      kind && kind !== 'Unchanged' ? `is-changed ${KIND_CLASS[kind]}` : '', selectedTaskId === st.taskId ? 'is-selected' : '',
-      animate && !prev ? 'is-new' : '',
+      isChanged && !opts.markWillChange ? `is-changed ${KIND_CLASS[kind]}` : '', isChanged && opts.markWillChange ? 'will-change' : '',
+      selectedTaskId === st.taskId ? 'is-selected' : '', animate && !prev ? 'is-new' : '',
     ].filter(Boolean).join(' ');
-    const label = `${st.title}, ${clock(st.startMin)} to ${clock(st.endMin)}, ${personName(s, st.personId)}, ${status.replace('_', ' ')}${kind && kind !== 'Unchanged' ? `, ${kind}` : ''}`;
-    const res = st.resources.map((r) => resourceName(s, r)).join(', ');
-    return `<button class="${cls}" ${opts.compact ? 'tabindex="-1"' : 'data-action="select-task"'} data-task="${esc(st.taskId)}"
-      style="left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px"
+    const label = `${st.title}, ${clock(st.startMin)} to ${clock(st.endMin)}, ${personName(s, st.personId)}, ${status.replace('_', ' ')}${isChanged ? `, ${kind}` : ''}`;
+    const color = st.personId ? personColor(s, st.personId) : '#6b7a99';
+    const chip = opts.kindChips && isChanged && !opts.markWillChange
+      ? `<span class="bar-chip ${KIND_CLASS[kind]}">${esc(kind)}${entry.deltaMinutes ? ` ${esc(formatSigned(entry.deltaMinutes))}` : ''}</span>` : '';
+    return `<button class="${cls}" data-action="select-task" data-task="${esc(st.taskId)}" style="--lane:${color};left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px"
       ${from ? `data-from-left="${from.left}" data-from-width="${from.width}" data-from-top="${from.top}"` : ''}
-      aria-label="${esc(label)}" title="${esc(label)}${res ? ` · uses ${esc(res)}` : ''}${st.actualCost ? ` · $${st.actualCost}` : ''}">
-      <span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span>
-      ${opts.compact ? '' : `<span class="bar-meta">${esc(clock(st.startMin))}–${esc(clock(st.endMin))}${st.durationMin < st.fullDurationMin ? ` · ${st.fullDurationMin}→${st.durationMin}m` : ''}${res ? ` · ${esc(res)}` : ''}</span>`}
+      aria-label="${esc(label)}" title="${esc(label)}${st.actualCost ? ` · $${st.actualCost}` : ''}">
+      ${chip}<span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span>
+      ${opts.compact ? '' : `<span class="bar-meta">${esc(clock(st.startMin))} · ${st.durationMin}m${st.durationMin < st.fullDurationMin ? ` (was ${st.fullDurationMin})` : ''}${st.variantId !== 'base' ? ' · alt' : ''}</span>`}
     </button>`;
   }).join('');
 
   const ghostHtml = ghosts && prevPlan ? [...changed.entries()]
-    .filter(([, kind]) => kind !== 'Unchanged' && kind !== 'Restored')
-    .map(([taskId, kind]) => {
+    .filter(([, e]) => e.kind !== 'Unchanged' && e.kind !== 'Restored')
+    .map(([taskId, e]) => {
       const prev = prevById.get(taskId);
       if (!prev) return '';
       const box = barBox(layout, axis, prev, 1);
-      return `<div class="ghost ${KIND_CLASS[kind]}" style="left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px" aria-hidden="true"><span>${kind === 'Removed' ? 'removed: ' : 'was: '}${esc(prev.title)}</span></div>`;
+      return `<div class="ghost ${KIND_CLASS[e.kind]}" style="left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px" aria-hidden="true"><span>${e.kind === 'Removed' ? 'removed' : 'was'} · ${esc(prev.title)}</span></div>`;
     }).join('') : '';
 
   const prevDeadlineMin = opts.prevState && opts.prevState.scenario.deadlineMin !== s.deadlineMin ? opts.prevState.scenario.deadlineMin : null;
-  const deadline = `<div class="marker marker-deadline ${pct(axis, s.deadlineMin) > 80 ? 'flip' : ''}" style="left:${pct(axis, s.deadlineMin)}%"
-      ${animate && prevDeadlineMin !== null ? `data-from-left="${pct(axis, prevDeadlineMin)}"` : ''} title="Deadline ${esc(clock(s.deadlineMin))}"><span>${esc(s.deadlineLabel || 'deadline')} ${esc(clock(s.deadlineMin))}</span></div>`;
-  const prevDeadline = prevDeadlineMin !== null
+  const deadline = `<div class="marker marker-deadline ${pct(axis, s.deadlineMin) > 78 ? 'flip' : ''}" style="left:${pct(axis, s.deadlineMin)}%"
+      ${animate && prevDeadlineMin !== null ? `data-from-left="${pct(axis, prevDeadlineMin)}"` : ''}><span>${icon('flag', 11)} ${esc(s.deadlineLabel || 'deadline')} ${esc(clock(s.deadlineMin))}</span></div>`;
+  const prevDeadline = prevDeadlineMin !== null && !opts.compact
     ? `<div class="marker marker-old" style="left:${pct(axis, prevDeadlineMin)}%"><span>was ${esc(clock(prevDeadlineMin))}</span></div>` : '';
-  const now = nowMin > axis.start && nowMin < axis.end ? `<div class="marker marker-now" style="left:${pct(axis, nowMin)}%"><span>now</span></div>` : '';
+  const now = nowMin > axis.start && nowMin < axis.end
+    ? `<div class="marker marker-now" style="left:${pct(axis, nowMin)}%"><span>${esc(clock(nowMin))} now</span></div>` : '';
 
   return `
-  <figure class="gantt ${opts.compact ? 'gantt-compact' : ''} ${size.row >= 64 ? 'tall' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(title || 'Plan timeline')}">
-    ${title ? `<figcaption class="gantt-title">${esc(title)}</figcaption>` : ''}
-    <div class="gantt-grid">
-      <div class="gantt-labels" style="height:${layout.height + 26}px"><div class="axis-spacer"></div><div class="labels-body" style="height:${layout.height}px">${labels}</div></div>
-      <div class="gantt-main">
-        <div class="axis">${ticks.map((m) => `<span style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}</div>
-        <div class="gantt-body" style="height:${layout.height}px">
+  <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px">
+    <div class="tl-grid">
+      <div class="tl-labels" style="height:${layout.height + 34}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
+      <div class="tl-main">
+        <div class="tl-axis">${ticks.map((m) => `<span style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}</div>
+        <div class="tl-body" style="height:${layout.height}px">
           ${ticks.map((m) => `<div class="tick" style="left:${pct(axis, m)}%"></div>`).join('')}
-          ${laneHtml}${resRows}${ghostHtml}${bars}${prevDeadline}${deadline}${now}
+          ${shades}${resRows}${ghostHtml}${bars}${prevDeadline}${deadline}${now}
           <div class="sweep" aria-hidden="true"></div>
         </div>
       </div>
@@ -362,173 +271,28 @@ export function renderGantt(opts) {
   </figure>`;
 }
 
-/** Row height that makes a chart fill `availablePx` (bounded so bars stay readable). */
-export function fitRowHeight({ state, plans, availablePx, compact }) {
-  const base = compact ? SIZES.compact : SIZES.full;
-  const lanes = buildLayout(state, plans, base).lanes.reduce((n, l) => n + l.rows, 0);
-  const fixed = 26 + state.scenario.resources.length * base.res + 4;
-  const fitted = Math.floor((availablePx - fixed) / Math.max(1, lanes));
-  return Math.max(base.row, Math.min(compact ? 64 : 96, fitted));
+/** Time axis covering every state/plan passed in, rounded to half hours. */
+export function axisFor(states, plans) {
+  const start = states[0].scenario.startMin;
+  const end = Math.ceil((Math.max(...states.map((x) => x.scenario.deadlineMin), ...plans.filter(Boolean).map((p) => p.endMin || 0)) + 10) / 30) * 30;
+  return { start, end, span: end - start };
 }
 
-/* ---------- Workspace pieces ---------- */
+/* ---------- Structured change form (same engine path as typed requests) ---------- */
 
-function kpiDelta(value, unit = '', invert = false) {
-  if (value === null || value === undefined || value === 0) return '';
-  const good = invert ? value < 0 : value > 0;
-  const sign = value > 0 ? '+' : '−';
-  return `<span class="delta ${good ? 'good' : 'bad'}">${sign}${unit === '$' ? '$' : ''}${Math.abs(value)}${unit === 'min' ? ' min' : ''}${unit === '%' ? ' pts' : ''}</span>`;
-}
-
-export function renderKpis({ head, prev, animate }) {
-  const s = head.state.scenario;
-  const p = head.plan;
-  const clock = (m) => formatClock(s, m);
-  const pp = prev?.plan;
-  const avg = (plan) => Math.round(plan.utilization.filter((u) => u.windowMin > 0).reduce((a, u) => a + u.pct, 0) / Math.max(1, plan.utilization.filter((u) => u.windowMin > 0).length));
-  const avgUtil = avg(p);
-  const prevUtil = pp ? avg(pp) : null;
-  const committedPct = Math.min(100, (p.committedCost / Math.max(1, s.budgetCap)) * 100);
-  const totalPct = Math.min(100, (p.totalCost / Math.max(1, s.budgetCap)) * 100);
-  const optionalDropped = p.dropped.filter((d) => d.cause !== 'user');
-  const userDropped = p.dropped.filter((d) => d.cause === 'user');
-  const flash = (changedValue) => (animate && changedValue ? 'flash' : '');
-  return `
-  <section class="kpis" aria-label="Plan summary">
-    <div class="kpi kpi-ok">
-      <div class="kpi-label">Feasibility</div>
-      <div class="kpi-value">✓ Feasible</div>
-      <div class="kpi-sub">validated: ${p.validation.checks} checks, 0 violations</div>
-    </div>
-    <div class="kpi ${flash(pp && p.endMin !== pp.endMin)}">
-      <div class="kpi-label" title="When the last task ends, vs ${esc(s.deadlineLabel || 'deadline')}">Finish</div>
-      <div class="kpi-value">${esc(clock(p.endMin))} ${pp ? kpiDelta(p.endMin - pp.endMin, 'min', true) : ''}</div>
-      <div class="kpi-sub">deadline ${esc(clock(s.deadlineMin))} · ${esc(formatDuration(p.slackMin))} slack</div>
-    </div>
-    <div class="kpi ${flash(pp && p.totalCost !== pp.totalCost)}">
-      <div class="kpi-label">Cost</div>
-      <div class="kpi-value">$${p.totalCost} <small>/ $${s.budgetCap}</small> ${pp ? kpiDelta(p.totalCost - pp.totalCost, '$', true) : ''}</div>
-      <div class="meter" role="img" aria-label="Spent or committed $${p.committedCost}, planned $${p.totalCost - p.committedCost}, budget $${s.budgetCap}">
-        <span class="meter-committed" style="width:${committedPct}%"></span><span class="meter-planned" style="width:${Math.max(0, totalPct - committedPct)}%"></span>
-      </div>
-      <div class="kpi-sub">$${p.committedCost} committed · $${p.totalCost - p.committedCost} planned</div>
-    </div>
-    <div class="kpi ${flash(prevUtil !== null && avgUtil !== prevUtil)}">
-      <div class="kpi-label" title="Share of each person's available time that is scheduled">Utilization</div>
-      <div class="kpi-value">${avgUtil}% ${prevUtil !== null ? kpiDelta(avgUtil - prevUtil, '%') : ''}</div>
-      <div class="kpi-sub">${p.utilization.map((u) => `${esc(personName(s, u.personId))} ${u.pct}%`).join(' · ')}</div>
-    </div>
-    <div class="kpi ${flash(pp && p.dropped.length !== pp.dropped.length)}">
-      <div class="kpi-label">Excluded</div>
-      <div class="kpi-value">${p.dropped.length || 'None'}</div>
-      <div class="kpi-sub">${[...optionalDropped.map((d) => `${esc(d.title)} (optional)`), ...userDropped.map((d) => `${esc(d.title)} (skipped by you)`)].join(' · ') || 'Every task is scheduled'}</div>
-    </div>
-  </section>`;
-}
-
-export function renderToolbar({ ui, head, scenario, nowMin }) {
-  const hasPrev = head.index > 0;
-  return `
-  <div class="toolbar">
-    <div class="seg" role="group" aria-label="View">
-      <button class="seg-btn" data-action="view" data-view="plan" aria-pressed="${ui.view === 'plan'}">${hasPrev ? 'Plan B' : 'Plan'}</button>
-      <button class="seg-btn" data-action="view" data-view="compare" aria-pressed="${ui.view === 'compare'}" ${hasPrev ? '' : 'disabled title="Available after the first change"'}>Before / After</button>
-    </div>
-    ${hasPrev && ui.view === 'plan' ? `<label class="check inline"><input type="checkbox" data-action="toggle-ghosts" ${ui.ghosts ? 'checked' : ''}> Previous positions</label>` : ''}
-    <div class="clock-ctrl" role="group" aria-label="Simulation clock">
-      <span class="muted small">Clock</span>
-      <button class="btn btn-sm" data-action="advance" data-min="10">+10 min</button>
-      <button class="btn btn-sm" data-action="advance" data-min="30">+30 min</button>
-    </div>
-  </div>`;
-}
-
-/** Recovery banner shown right after a change is committed. Every figure comes from the revision. */
-export function renderRecoveryBanner(head) {
-  if (!head.diff) return '';
-  const s = head.state.scenario;
-  const n = head.diff.changed.length;
-  return `
-  <div class="recovery" role="status">
-    <span class="recovery-icon" aria-hidden="true">✓</span>
-    <div class="recovery-text">
-      <strong>Plan B ready — ${esc(head.id)}</strong>
-      <span>${n} task${n === 1 ? '' : 's'} changed · validated ${head.plan.validation.checks} checks · finishes ${esc(formatClock(s, head.plan.endMin))} (${esc(formatDuration(head.plan.slackMin))} slack) · $${head.plan.totalCost} / $${s.budgetCap}</span>
-    </div>
-    <button class="btn btn-ghost btn-sm" data-action="dismiss-banner" aria-label="Dismiss">✕</button>
-  </div>`;
-}
-
-export function renderInfeasible(proposal, scenario) {
-  const violations = proposal.plan.violations.map((v) => `
-    <li><span class="proof proof-${esc(v.proof)}">${v.proof === 'proven' ? 'Proven bound' : v.proof === 'search' ? 'Bounded search' : 'Validator'}</span>
-      <code>${esc(v.code)}</code> ${esc(v.message)}</li>`).join('');
-  const options = proposal.options.map((o, i) => `
-    <li class="option">
-      <div><strong>${esc(o.label)}</strong><div class="muted small">Verified by the planner: ${esc(o.detail)}</div></div>
-      <button class="btn btn-primary" data-action="apply-option" data-index="${i}">Apply this</button>
-    </li>`).join('');
-  return `
-  <section class="infeasible" role="alertdialog" aria-labelledby="inf-title" tabindex="-1" id="infeasible">
-    <div class="inf-head">
-      <span class="inf-icon" aria-hidden="true">!</span>
-      <h2 id="inf-title">No feasible plan — nothing was changed</h2>
-      <button class="btn btn-ghost btn-sm" data-action="dismiss-proposal" aria-label="Keep current plan and dismiss">Keep current plan ✕</button>
-    </div>
-    <p>Requested: <strong>${esc(proposal.descriptions.join(' + '))}</strong> at ${esc(formatClock(scenario, proposal.atMin))}.
-    Your constraints are untouched until you confirm an option.</p>
-    <div class="inf-grid">
-      <div><h3>Hard constraints that cannot all hold</h3><ul class="violations">${violations}</ul></div>
-      <div>${proposal.options.length ? `<h3>Options I checked that would work</h3><ul class="options">${options}</ul>`
-    : '<h3>Options</h3><p class="muted">No single relaxation I can check restores feasibility. Undo or restore the scenario instead.</p>'}</div>
-    </div>
-  </section>`;
-}
-
-export function renderConstraints({ head, original }) {
-  const s = head.state.scenario;
-  const clock = (m) => formatClock(s, m);
-  const changedDeadline = s.deadlineMin !== original.deadlineMin;
-  const changedBudget = s.budgetCap !== original.budgetCap;
-  const people = s.people.map((p) => {
-    const o = original.people.find((x) => x.id === p.id);
-    const notIn = p.availableTo <= p.availableFrom;
-    const reduced = o && p.availableTo < o.availableTo && !notIn;
-    const late = o && p.availableFrom > o.availableFrom && !notIn;
-    return `<li class="${reduced || notIn || late ? 'warn' : ''}">${esc(p.name)} <span class="muted">${notIn ? 'not available' : `${esc(clock(p.availableFrom))}${late ? ' (late)' : ''}–${reduced ? `${esc(clock(p.availableTo))} (leaves)` : 'end'}`}</span></li>`;
-  }).join('');
-  const res = s.resources.map((r) => `<li class="${r.available ? '' : 'warn'}">${esc(r.name)} <span class="muted">×${r.capacity} · ${r.available ? 'available' : 'unavailable'}</span></li>`).join('');
-  const typeOptions = [
-    ['deadline_earlier', 'Deadline earlier by…'], ['person_unavailable', 'Person becomes unavailable'], ['person_delayed', 'Person arrives late by…'],
-    ['resource_unavailable', 'Equipment breaks'], ['resource_restored', 'Equipment works again'], ['budget_reduced', 'Budget reduced to…'], ['duration_increase', 'Task takes longer…'],
-  ].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
-  return `
-  <section class="constraints" aria-labelledby="c-title">
-    <h2 id="c-title" class="panel-title">Current constraints <span class="muted small">revision ${esc(head.id)}</span></h2>
-    <div class="c-grid">
-      <div><h3>Deadline</h3><p class="${changedDeadline ? 'warn' : ''}">${esc(clock(s.deadlineMin))}${changedDeadline ? ` <span class="muted">(was ${esc(clock(original.deadlineMin))})</span>` : ''}</p></div>
-      <div><h3>Budget</h3><p class="${changedBudget ? 'warn' : ''}">$${s.budgetCap}${changedBudget ? ` <span class="muted">(was $${original.budgetCap})</span>` : ''}</p></div>
-      <div><h3>People</h3><ul class="plain">${people}</ul></div>
-      <div><h3>Equipment</h3><ul class="plain">${res}</ul></div>
-    </div>
-    <form class="manual" data-form="manual" aria-label="Structured change form">
-      <h3>Structured change <span class="muted small">(same engine path as typed requests)</span></h3>
-      <select data-field="m-type" aria-label="Change type">${typeOptions}</select>
-      <div class="manual-row">
-        <span data-slot="m-param">${manualParam('deadline_earlier', head)}</span>
-        <button class="btn" type="submit">Apply change</button>
-      </div>
-    </form>
-  </section>`;
-}
+export const MANUAL_TYPES = [
+  ['deadline_earlier', 'Deadline earlier by…'], ['person_unavailable', 'Person becomes unavailable'], ['person_delayed', 'Person arrives late by…'],
+  ['resource_unavailable', 'Equipment breaks'], ['resource_restored', 'Equipment works again'], ['budget_reduced', 'Budget reduced to…'], ['duration_increase', 'Task takes longer…'],
+];
 
 export function manualParam(type, head) {
   const s = head.state.scenario;
+  const people = s.people.filter((p) => p.availableTo > p.availableFrom).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   switch (type) {
     case 'deadline_earlier':
       return `<input type="number" min="5" max="240" step="5" value="30" data-field="m-minutes" aria-label="Minutes earlier"> <span class="muted">min</span>`;
     case 'person_unavailable':
-      return `<select data-field="m-person" aria-label="Person">${s.people.filter((p) => p.availableTo > p.availableFrom).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>`;
+      return `<select data-field="m-person" aria-label="Person">${people}</select>`;
     case 'resource_unavailable':
       return `<select data-field="m-resource" aria-label="Equipment">${s.resources.filter((r) => r.available).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select>`;
     case 'resource_restored': {
@@ -538,7 +302,7 @@ export function manualParam(type, head) {
         : '<span class="muted small">No equipment is down</span>';
     }
     case 'person_delayed':
-      return `<select data-field="m-person" aria-label="Person">${s.people.filter((p) => p.availableTo > p.availableFrom).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+      return `<select data-field="m-person" aria-label="Person">${people}</select>
         <input type="number" min="5" max="240" step="5" value="20" data-field="m-minutes" aria-label="Minutes late"> <span class="muted">min</span>`;
     case 'budget_reduced':
       return `<span class="muted">$</span><input type="number" min="0" max="${Math.max(0, s.budgetCap - 1)}" step="1" value="${Math.max(0, s.budgetCap - 20)}" data-field="m-cap" aria-label="New budget">`;
@@ -550,160 +314,27 @@ export function manualParam(type, head) {
   }
 }
 
-export function renderWhy({ head, selectedTaskId }) {
-  const s = head.state.scenario;
-  const clock = (m) => formatClock(s, m);
-  if (!head.diff) {
-    return `<section class="why" aria-labelledby="why-title"><h2 id="why-title" class="panel-title">Why it changed</h2>
-      <div class="empty">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 17h5l3-10 3 6h7"/></svg>
-        <p>This is the original plan — nothing has changed yet.</p>
-        <p class="muted small">Tell the assistant what changed, e.g. “Guests are arriving an hour early and the oven broke.”</p>
-      </div></section>`;
-  }
-  const d = head.diff;
-  const cards = d.changed.map((e) => {
-    const b = e.before; const a = e.after;
-    const time = b && a ? `${esc(clock(b.startMin))}–${esc(clock(b.endMin))} → <strong>${esc(clock(a.startMin))}–${esc(clock(a.endMin))}</strong>`
-      : b ? `${esc(clock(b.startMin))}–${esc(clock(b.endMin))} → <strong>removed</strong>` : `<strong>${esc(clock(a.startMin))}–${esc(clock(a.endMin))}</strong>`;
-    const who = b && a && b.personId !== a.personId ? `<div class="why-who">${esc(personName(s, b.personId))} → <strong>${esc(personName(s, a.personId))}</strong></div>` : '';
-    const reasons = e.reasons.map((r) => `
-      <li><span class="reason tone-${esc(REASONS[r.code]?.tone || 'info')}" title="${esc(r.code)}">${esc(reasonLabel(r.code))}</span>
-        <span class="evidence">${esc(r.evidence.join(' · '))}</span></li>`).join('');
-    return `
-    <li class="why-card ${selectedTaskId === e.taskId ? 'is-selected' : ''}" data-why="${esc(e.taskId)}">
-      <button class="why-head" data-action="select-task" data-task="${esc(e.taskId)}" aria-pressed="${selectedTaskId === e.taskId}">
-        <span class="kind ${KIND_CLASS[e.kind]}">${esc(e.kind)}</span>
-        <span class="why-title">${e.kind === 'Replaced' ? `${esc(e.beforeTitle)} → ` : ''}${esc(e.title)}</span>
-        ${e.deltaMinutes ? `<span class="why-delta">${esc(formatSigned(e.deltaMinutes))}</span>` : ''}
-      </button>
-      <div class="why-time">${time}</div>${who}
-      <ul class="reasons">${reasons}</ul>
-    </li>`;
-  }).join('');
-  const unchanged = d.entries.filter((e) => e.kind === 'Unchanged');
-  const frozen = unchanged.filter((e) => e.frozen);
-  return `
-  <section class="why" aria-labelledby="why-title">
-    <h2 id="why-title" class="panel-title">Why it changed <span class="muted small">${d.changed.length} changed · ${unchanged.length} unchanged</span></h2>
-    ${d.changed.length ? `<ol class="why-list">${cards}</ol>` : '<p class="muted">The change was absorbed without moving any task.</p>'}
-    ${frozen.length ? `<p class="muted small">Frozen (already started or done): ${frozen.map((e) => esc(e.title)).join(', ')}</p>` : ''}
-    <p class="muted small">Reasons come from reason codes tied to the constraint that changed — no free-text guessing.</p>
-  </section>`;
-}
+/* ---------- Small shared blocks ---------- */
 
-export function renderTimeline({ session }) {
-  const s = session.revisions[0].state.scenario;
-  const clock = (m) => formatClock(s, m);
-  const revs = [...session.revisions].reverse().map((r, i) => `
-    <li class="rev ${i === 0 ? 'is-current' : ''}">
-      <div class="rev-dot" aria-hidden="true"></div>
-      <div><div class="rev-title"><code>${esc(r.id)}</code> ${esc(r.label)}</div>
-      <div class="muted small">at ${esc(clock(r.atMin))} · ends ${esc(clock(r.plan.endMin))} · $${r.plan.totalCost}${r.shocks.length ? ` · via ${esc([...new Set(r.shocks.map((x) => x.source))].join(', '))}` : ''}${i === 0 ? ' · current' : ''}</div></div>
-    </li>`).join('');
-  const rejected = session.rejected.slice(-3).reverse().map((r) => `<li><span class="kind k-removed">Rejected</span> ${esc(r.descriptions.join(' + '))} <span class="muted small">at ${esc(clock(r.atMin))} — ${esc(r.violations[0]?.code || '')}</span></li>`).join('');
-  const undone = session.shockLog.filter((x) => x.undone).slice(-4).map((x) => `<li><s>${esc(x.description)}</s> <span class="muted small">undone</span></li>`).join('');
+export function kpiCard({ label, value, sub, iconName, tone = '', extra = '' }) {
   return `
-  <section class="timeline" aria-labelledby="tl-title">
-    <h2 id="tl-title" class="panel-title">Session history</h2>
-    <ol class="revs">${revs}</ol>
-    ${rejected ? `<h3>Rejected requests</h3><ul class="plain">${rejected}</ul>` : ''}
-    ${undone ? `<h3>Undone changes</h3><ul class="plain">${undone}</ul>` : ''}
-    <div class="tl-actions">
-      <button class="btn" data-action="undo" ${session.revisions.length > 1 ? '' : 'disabled'}>Undo last change</button>
-      <button class="btn" data-action="restore" ${session.revisions.length > 1 ? '' : 'disabled'}>Restore scenario</button>
-    </div>
-    <p class="muted small">Saved in this browser (localStorage). Refresh the page — the session comes back.</p>
-  </section>`;
-}
-
-export function renderActivity({ session }) {
-  const activity = session.activity.slice(-8).reverse().map((t) => `
-    <li><div class="act-in">“${esc(t.input)}” <span class="muted small">${esc(t.source)}</span></div>
-      <ol class="steps">${t.steps.map((st) => `<li class="step step-${esc(st.status)}"><code>${esc(st.tool)}</code> <span>${esc(st.detail)}</span>${st.ms ? ` <span class="muted small">${st.ms} ms</span>` : ''}</li>`).join('')}</ol></li>`).join('');
-  return `
-  <section class="activity" aria-labelledby="act-title">
-    <h2 id="act-title" class="panel-title">Agent tool log</h2>
-    ${activity ? `<ol class="act-list">${activity}</ol>` : '<p class="muted small">Raw tool calls (parse → validate → plan → validate → explain → commit) appear here.</p>'}
-  </section>`;
-}
-
-const SIDE_TABS = [['changes', 'Changes'], ['constraints', 'Constraints'], ['history', 'History'], ['log', 'Agent log']];
-
-export function renderSidePanel({ tab, head, session, selectedTaskId }) {
-  const count = head.diff ? head.diff.changed.length : 0;
-  const tabs = SIDE_TABS.map(([id, label]) => `
-    <button role="tab" class="tab" id="tab-${id}" data-tab="${id}" data-action="side-tab" aria-selected="${tab === id}" aria-controls="panel-${id}" tabindex="${tab === id ? 0 : -1}">
-      ${label}${id === 'changes' && count ? ` <span class="tab-count">${count}</span>` : ''}${id === 'history' ? ` <span class="tab-count">${session.revisions.length}</span>` : ''}
-    </button>`).join('');
-  const panel = (id, html) => `<div role="tabpanel" class="tabpanel" id="panel-${id}" aria-labelledby="tab-${id}" ${tab === id ? '' : 'hidden'}>${html}</div>`;
-  return `
-  <aside class="side" aria-label="Changes and history">
-    <div class="tabs" role="tablist" aria-label="Details">${tabs}</div>
-    ${panel('changes', renderWhy({ head, selectedTaskId }))}
-    ${panel('constraints', renderConstraints({ head, original: session.originalScenario }))}
-    ${panel('history', renderTimeline({ session }))}
-    ${panel('log', renderActivity({ session }))}
-  </aside>`;
-}
-
-export function renderDock({ session, scenario, status, parser, draft }) {
-  const recent = session.conversation.slice(-24);
-  const lastAssistant = recent.map((m) => m.role).lastIndexOf('assistant');
-  const traceHtml = (m, open) => (m.trace?.length ? `
-      <details class="trace-wrap" ${open ? 'open' : ''}>
-        <summary>Agent steps (${m.trace.length})</summary>
-        <ol class="trace">${m.trace.map((t) => `<li class="tr tr-${esc(t.status)}"><span class="tr-step">${esc(t.step)}</span><span class="tr-detail">${esc(t.detail)}</span></li>`).join('')}</ol>
-      </details>` : '');
-  const msgs = recent.map((m, i) => `
-    <li class="msg msg-${m.role} ${m.tone ? `tone-${m.tone}` : ''}">
-      <div class="msg-who">${m.role === 'user' ? `You${m.source && m.source !== 'typed' ? ` · ${esc(m.source)}` : ''}` : 'PlanB'}</div>
-      <div class="msg-text">${esc(m.text)}</div>${traceHtml(m, i === lastAssistant)}
-    </li>`).join('');
-  const intro = `<li class="msg msg-assistant"><div class="msg-who">PlanB</div><div class="msg-text">Your ${esc(scenario.name.toLowerCase())} plan is ready and validated. Tell me what changed — in your own words, or pick a quick command.</div></li>`;
-  const chips = scenario.quickCommands.map((q) => `<button class="chip" data-action="quick" data-text="${esc(q.text)}" title="${esc(q.text)}">${esc(q.label)}</button>`).join('');
-  const busy = status === 'parsing' || status === 'planning';
-  return `
-  <aside class="dock" aria-label="Assistant">
-    <div class="dock-head">
-      <div class="orb orb-${esc(status)}" aria-hidden="true"><span></span></div>
-      <div><div class="dock-title">PlanB assistant</div>
-        <div class="dock-status" role="status" aria-live="polite">${esc(STATUS_LABEL[status] || status)}</div></div>
-    </div>
-    <ol class="conversation" aria-live="polite" aria-relevant="additions">${intro}${msgs}</ol>
-    <div class="dock-foot">
-      <div class="chips" role="group" aria-label="Quick commands">${chips}</div>
-      <form class="composer" data-form="command">
-        <label for="cmd" class="sr-only">Tell PlanB what changed</label>
-        <input id="cmd" name="cmd" autocomplete="off" maxlength="500" placeholder="Tell PlanB what changed…  ( / to focus )" value="${esc(draft || '')}" ${busy ? 'disabled' : ''}>
-        <button class="btn btn-primary" type="submit" ${busy ? 'disabled' : ''}>${busy ? 'Working…' : 'Send'}</button>
-      </form>
-      <div class="parser-note muted small">${parser.mode === 'llm' ? 'LLM output is re-validated against the shock schema before planning.' : 'Read by a limited local rule parser (not an LLM). Unsupported phrasing is reported, never guessed.'}</div>
-    </div>
-  </aside>`;
-}
-
-export function renderTaskDetail({ head, taskId, nowMin }) {
-  const s = head.state.scenario;
-  const clock = (m) => formatClock(s, m);
-  const task = s.tasks.find((t) => t.id === taskId);
-  if (!task) return '';
-  const st = head.plan.scheduled.find((x) => x.taskId === taskId);
-  const dropped = head.plan.dropped.find((d) => d.taskId === taskId);
-  const facts = st ? [
-    `${esc(clock(st.startMin))}–${esc(clock(st.endMin))} (${st.durationMin} min${st.durationMin < st.fullDurationMin ? `, compressed from ${st.fullDurationMin}` : ''})`,
-    esc(personName(s, st.personId)),
-    st.resources.length ? esc(st.resources.map((r) => resourceName(s, r)).join(', ')) : 'no equipment',
-    `$${st.actualCost}`,
-    esc(liveStatus(st, nowMin).replace('_', ' ')),
-    st.variantId !== 'base' ? `alternative for "${esc(task.title)}"` : '',
-  ].filter(Boolean) : [dropped?.cause === 'user' ? 'skipped by you' : 'dropped (optional)'];
-  return `
-  <div class="task-detail" role="region" aria-label="Selected task">
-    <span class="prio prio-${esc(task.priority)}">${esc(task.priority)}</span>
-    <strong>${esc(st?.title || task.title)}</strong>
-    <span class="muted">${facts.join(' · ')}</span>
-    ${task.dependsOn.length ? `<span class="muted small">after: ${task.dependsOn.map((d) => esc(s.tasks.find((t) => t.id === d)?.title)).join(', ')}</span>` : ''}
-    <button class="btn btn-ghost btn-sm" data-action="select-task" data-task="${esc(taskId)}" aria-label="Clear selection">✕</button>
+  <div class="kpi ${tone}">
+    <div class="kpi-top"><span class="kpi-label">${esc(label)}</span>${iconName ? `<span class="kpi-icon">${icon(iconName, 16)}</span>` : ''}</div>
+    <div class="kpi-value">${value}</div>
+    ${extra}
+    ${sub ? `<div class="kpi-sub">${sub}</div>` : ''}
   </div>`;
 }
+
+export function delta(value, unit = '', invert = false) {
+  if (value === null || value === undefined || value === 0) return '';
+  const good = invert ? value < 0 : value > 0;
+  const sign = value > 0 ? '+' : '−';
+  return `<span class="delta ${good ? 'good' : 'bad'}">${sign}${unit === '$' ? '$' : ''}${Math.abs(value)}${unit === 'min' ? ' min' : ''}${unit === '%' ? ' pts' : ''}</span>`;
+}
+
+export function formatWindow(scenario, a, b) {
+  return `${formatClock(scenario, a)}–${formatClock(scenario, b)}`;
+}
+
+export { formatClock, formatDuration, formatSigned, personName, resourceName, liveStatus, reasonLabel, REASONS };

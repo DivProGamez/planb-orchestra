@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PlanB Orchestra</title>
   <meta name="description" content="Simulated Alexa+-style household planning agent that repairs schedules when life changes — with a deterministic, independently validated constraint engine.">
-  <meta name="theme-color" content="#08101f">
+  <meta name="theme-color" content="#0b0e18">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect x='1.5' y='1.5' width='37' height='37' rx='11' fill='%230d1a30' stroke='%232dd4bf' stroke-width='2'/%3E%3Cpath d='M9 27 C17 27 17.5 21 21 19.5 C24.5 18 25.5 13 31 13' fill='none' stroke='%232dd4bf' stroke-width='3.2' stroke-linecap='round'/%3E%3Ccircle cx='9' cy='27' r='3' fill='%232dd4bf'/%3E%3Ccircle cx='31' cy='13' r='3' fill='%235eead4'/%3E%3C/svg%3E">
   <style>
     /* Critical splash styles: visible before the main stylesheet and modules load. */
-    html, body { margin: 0; background: #08101f; }
+    html, body { margin: 0; background: #0b0e18; }
     .splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; color: #e8eef8;
       font: 16px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
-      background: radial-gradient(900px 520px at 50% 38%, #12305a 0%, #0b1730 45%, #08101f 100%); transition: opacity 340ms ease, transform 340ms ease; }
+      background: radial-gradient(900px 520px at 50% 38%, #1d1f4a 0%, #11132a 45%, #0b0e18 100%); transition: opacity 340ms ease, transform 340ms ease; }
     .splash.out { opacity: 0; transform: scale(1.015); pointer-events: none; }
     .splash-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 24px; }
     .splash-mark { position: relative; width: 132px; height: 132px; }
@@ -24,7 +24,7 @@
     .splash-name { font-size: 1.9rem; font-weight: 750; letter-spacing: -0.01em; margin-top: 6px; }
     .splash-tag { color: #94a5c2; margin-top: -10px; }
     .splash-progress { width: 260px; height: 4px; border-radius: 999px; background: rgba(148, 165, 194, 0.18); overflow: hidden; margin-top: 8px; }
-    #splash-bar { height: 100%; background: linear-gradient(90deg, #2dd4bf, #3b82f6); transform: scaleX(0); transform-origin: left; transition: transform 420ms cubic-bezier(.2,.7,.2,1); }
+    #splash-bar { height: 100%; background: linear-gradient(90deg, #4cd7f6, #8083ff); transform: scaleX(0); transform-origin: left; transition: transform 420ms cubic-bezier(.2,.7,.2,1); }
     #splash-status { color: #94a5c2; font-size: 0.88rem; min-height: 1.4em; }
     .splash-note { position: absolute; bottom: 22px; left: 0; right: 0; text-align: center; color: #6b7d9c; font-size: 0.78rem; }
     @keyframes splash-draw { to { stroke-dashoffset: 0; } }
@@ -39,14 +39,14 @@
       <div class="splash-mark" aria-hidden="true">
         <svg viewBox="0 0 100 100" width="132" height="132">
           <circle class="splash-ring-track" cx="50" cy="50" r="42" fill="none" stroke-width="3"/>
-          <circle id="splash-ring" cx="50" cy="50" r="42" fill="none" stroke="#2dd4bf" stroke-width="3" stroke-linecap="round"/>
+          <circle id="splash-ring" cx="50" cy="50" r="42" fill="none" stroke="#8083ff" stroke-width="3" stroke-linecap="round"/>
         </svg>
         <svg class="splash-logo" viewBox="0 0 40 40" width="76" height="76" style="left:28px;top:28px">
-          <defs><linearGradient id="splash-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>
-          <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="#0d1a30" stroke="url(#splash-grad)" stroke-width="2"/>
+          <defs><linearGradient id="splash-grad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4cd7f6"/><stop offset="1" stop-color="#8083ff"/></linearGradient></defs>
+          <rect x="1.5" y="1.5" width="37" height="37" rx="11" fill="#0d1322" stroke="url(#splash-grad)" stroke-width="2"/>
           <path d="M9 27 H16 L22 14 H31" fill="none" stroke="#f5b041" stroke-width="2.2" stroke-dasharray="2.5 3" stroke-linecap="round" opacity=".85"/>
           <path class="splash-route" d="M9 27 C17 27 17.5 21 21 19.5 C24.5 18 25.5 13 31 13" fill="none" stroke="url(#splash-grad)" stroke-width="3.2" stroke-linecap="round"/>
-          <circle cx="9" cy="27" r="3" fill="#2dd4bf"/><circle cx="31" cy="13" r="3" fill="#5eead4"/>
+          <circle cx="9" cy="27" r="3" fill="#4cd7f6"/><circle cx="31" cy="13" r="3" fill="#c0c1ff"/>
         </svg>
       </div>
       <div class="splash-name">PlanB Orchestra</div>

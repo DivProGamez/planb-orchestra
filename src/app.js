@@ -1,20 +1,21 @@
-// UI state machine and event handling. All planning happens in the engine modules;
-// this file only routes user actions, persists state and renders views.
+// UI controller: view routing, events, persistence and rendering. All planning happens in the
+// engine modules; this file never computes schedules itself.
 
 import { SCENARIOS, getScenario } from './data/scenarios.js';
-import { createSession, currentRevision } from './engine/session.js';
+import { createSession, currentRevision, proposeShocks } from './engine/session.js';
 import { validateScenario } from './engine/validate.js';
 import { formatClock, formatDuration } from './engine/model.js';
 import { parseCommand } from './engine/parser.js';
 import { runAgentTurn, applyOption } from './engine/agent.js';
 import { saveState, loadState, clearState, memoryStorage } from './persistence.js';
+import { axisFor, fitRowHeight, manualParam, esc } from './components.js';
 import {
-  renderAppBar, renderHome, renderHomePreview, renderGantt, renderKpis, renderToolbar, renderInfeasible,
-  renderRecoveryBanner, renderSidePanel, renderDock, manualParam, esc, renderTaskDetail, fitRowHeight,
-} from './components.js';
+  VIEWS, renderSidebar, renderTopbar, renderHome, renderHomePreview, renderWorkspace, renderAssistantView,
+  renderRepair, renderCompare, renderHistory, renderSettings, renderDisruptionModal,
+} from './views.js';
 
 const root = document.getElementById('app');
-const reduceMotion = () => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+const PREFS_KEY = 'planb-orchestra.prefs';
 
 function safeStorage() {
   try {
@@ -28,47 +29,59 @@ function safeStorage() {
 }
 const storage = safeStorage();
 
+function loadPrefs() {
+  const defaults = { confirm: true, ghosts: true, reduceMotion: false };
+  try { return { ...defaults, ...JSON.parse(storage.getItem(PREFS_KEY) || '{}') }; } catch { return defaults; }
+}
+function savePrefs() {
+  try { storage.setItem(PREFS_KEY, JSON.stringify(ui.prefs)); } catch { /* storage unavailable */ }
+}
+
 function defaultForm(id) {
   const s = getScenario(id);
   return { deadlineMin: s.deadlineMin, budgetCap: s.budgetCap, people: {}, resources: {} };
 }
 
 const ui = {
-  screen: 'home',
+  view: 'home',
   session: null,
-  view: 'plan',
-  ghosts: true,
-  sideTab: 'changes',
-  selectedTaskId: null,
   status: 'idle',
   proposal: null,
+  pending: null,
+  modal: { open: false, step: 'describe', draft: '' },
   animateRevisionId: null,
   bannerRevisionId: null,
+  selectedTaskId: null,
   home: { scenarioId: SCENARIOS[0].id, form: defaultForm(SCENARIOS[0].id), error: '', tab: 'timeline' },
   preview: null,
+  compareA: null,
+  compareB: null,
+  historyIndex: null,
   rowH: null,
   previewRowH: null,
+  compareRowH: null,
   notice: '',
   draft: '',
+  prefs: loadPrefs(),
+  boot: { summary: '' },
   parser: { mode: 'local', reason: 'Checking server…' },
 };
+
+const reduceMotion = () => ui.prefs.reduceMotion || Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
 
 /* ---------- Persistence ---------- */
 
 function persist() {
   if (!ui.session) return;
-  saveState(storage, { session: ui.session, ui: { view: ui.view, selectedTaskId: ui.selectedTaskId, ghosts: ui.ghosts, sideTab: ui.sideTab } });
+  saveState(storage, { session: ui.session, ui: { view: ui.view, selectedTaskId: ui.selectedTaskId } });
 }
 
 function restore() {
   const res = loadState(storage);
   if (res.ok) {
     ui.session = res.session;
-    ui.screen = 'workspace';
-    ui.view = res.ui.view === 'compare' && res.session.revisions.length > 1 ? 'compare' : 'plan';
+    ui.view = VIEWS.some((v) => v.id === res.ui.view) ? res.ui.view : 'workspace';
     ui.selectedTaskId = res.ui.selectedTaskId || null;
-    ui.ghosts = res.ui.ghosts !== false;
-    ui.sideTab = ['changes', 'constraints', 'history', 'log'].includes(res.ui.sideTab) ? res.ui.sideTab : 'changes';
     if (getScenario(res.session.scenarioId)) selectScenario(res.session.scenarioId);
     ui.notice = '';
   } else if (res.reason !== 'empty') {
@@ -79,7 +92,7 @@ function restore() {
 
 /* ---------- Parser selection (LLM only when the server reports it enabled) ---------- */
 
-async function detectParser(timeoutMs = 2500) {
+async function detectParser(timeoutMs = 2000) {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -145,40 +158,65 @@ function selectScenario(id) {
   computePreview();
 }
 
-/** Updates only the preview and the form's live outputs, so sliders keep their drag/focus. */
-function refreshPreview() {
-  computePreview();
-  const box = root.querySelector('#home-preview');
-  if (box) {
-    box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
-    if (fitCharts()) box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
-  }
-  const s = getScenario(ui.home.scenarioId);
-  const out = root.querySelector('[data-out="deadline"]');
-  if (out) out.textContent = formatClock(s, ui.home.form.deadlineMin);
-  const win = root.querySelector('[data-out="window"]');
-  if (win) win.textContent = `Start ${formatClock(s, s.startMin)} · window ${formatDuration(ui.home.form.deadlineMin - s.startMin)}`;
-}
-
-/* ---------- Actions ---------- */
+/* ---------- Change requests: parse → review (dry run) → confirm → replan ---------- */
 
 function setStatus(status) {
   ui.status = status;
-  if (ui.screen === 'workspace') render();
+  if (ui.session) render();
 }
 
-async function submitCommand(text, source = 'typed') {
-  const trimmed = text.trim();
-  if (!trimmed || ui.status === 'parsing' || ui.status === 'planning') return;
+/**
+ * origin: 'chat' (assistant conversation) or 'modal' (disruption dialog / top command box).
+ * Non-change intents (undo, status, clock, help, not understood) run immediately.
+ */
+async function requestChange(text, source, origin) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed || !ui.session || ui.status === 'parsing' || ui.status === 'planning') return;
   ui.draft = '';
   setStatus('parsing');
   const parsed = await parseText(trimmed, source);
-  setStatus('planning');
-  await new Promise((r) => setTimeout(r, 60)); // let the busy state paint before the synchronous planner runs
-  runTurn(trimmed, parsed);
+  if (parsed.intent !== 'shocks') {
+    if (origin === 'modal') {
+      ui.status = 'idle';
+      ui.pending = { origin, input: trimmed, parsed, preview: { ok: false, errors: [`I couldn't map “${trimmed}” to a supported change${parsed.notes?.length ? ` (${parsed.notes.join(' ')})` : ''}. Try one of the examples, or the structured change.`] } };
+      ui.modal = { ...ui.modal, open: true, step: 'review', draft: trimmed };
+      render();
+      return;
+    }
+    await runTurn(trimmed, parsed);
+    return;
+  }
+  prepareReview(trimmed, parsed, origin);
 }
 
-function runTurn(input, parsed) {
+function prepareReview(input, parsed, origin) {
+  if (!ui.prefs.confirm) { confirmWith({ input, parsed }); return; }
+  const head = currentRevision(ui.session);
+  const preview = proposeShocks(ui.session, parsed.shocks, { source: parsed.source || 'typed' });
+  ui.pending = { origin, input, parsed, preview, before: head.state.scenario, headPlan: head.plan };
+  ui.status = 'idle';
+  if (origin === 'modal') ui.modal = { ...ui.modal, open: true, step: 'review' };
+  render();
+  root.querySelector('[data-action="confirm-change"]')?.focus();
+}
+
+function confirmWith(pending) {
+  ui.pending = null;
+  ui.modal = { open: false, step: 'describe', draft: '' };
+  ui.view = 'workspace';
+  setStatus('planning');
+  setTimeout(() => runTurn(pending.input, pending.parsed), reduceMotion() ? 0 : 60);
+}
+
+function cancelPending() {
+  const wasModal = ui.pending?.origin === 'modal' || ui.modal.open;
+  ui.pending = null;
+  if (wasModal) ui.modal = { open: false, step: 'describe', draft: '' };
+  ui.status = 'idle';
+  render();
+}
+
+async function runTurn(input, parsed) {
   const before = ui.session.revisions.length;
   let result;
   try {
@@ -196,17 +234,18 @@ function runTurn(input, parsed) {
   if (ui.session.revisions.length > before) {
     ui.animateRevisionId = currentRevision(ui.session).id;
     ui.bannerRevisionId = ui.animateRevisionId;
-    ui.view = 'plan';
-    ui.sideTab = 'changes';
+    ui.compareA = null; ui.compareB = null; ui.historyIndex = null;
   }
   if (ui.session.revisions.length < before) {
     ui.selectedTaskId = null;
     ui.bannerRevisionId = null;
+    ui.compareA = null; ui.compareB = null; ui.historyIndex = null;
   }
+  if (ui.proposal) ui.view = 'workspace';
   persist();
   render();
   if (ui.proposal) {
-    root.querySelector('.timeline-card')?.classList.add('crisis');
+    root.querySelector('.canvas')?.classList.add('crisis-pulse');
     root.querySelector('#infeasible')?.focus();
   }
 }
@@ -220,7 +259,7 @@ function chooseOption(index) {
   ui.status = result.reply.tone === 'done' ? 'done' : 'failure';
   ui.animateRevisionId = currentRevision(ui.session).id;
   ui.bannerRevisionId = ui.animateRevisionId;
-  ui.sideTab = 'changes';
+  ui.compareA = null; ui.compareB = null; ui.historyIndex = null;
   persist();
   render();
 }
@@ -234,8 +273,8 @@ function buildPlan() {
     return;
   }
   Object.assign(ui, {
-    session: res.session, screen: 'workspace', view: 'plan', sideTab: 'changes', selectedTaskId: null,
-    proposal: null, status: 'idle', bannerRevisionId: null, notice: '',
+    session: res.session, view: 'workspace', selectedTaskId: null, proposal: null, pending: null, status: 'idle',
+    bannerRevisionId: null, notice: '', compareA: null, compareB: null, historyIndex: null,
   });
   ui.home.error = '';
   persist();
@@ -244,12 +283,13 @@ function buildPlan() {
 
 function newSession() {
   clearState(storage);
-  Object.assign(ui, { screen: 'home', session: null, proposal: null, selectedTaskId: null, status: 'idle', notice: '', bannerRevisionId: null });
+  Object.assign(ui, { view: 'home', session: null, proposal: null, pending: null, selectedTaskId: null, status: 'idle', notice: '', bannerRevisionId: null });
+  ui.modal = { open: false, step: 'describe', draft: '' };
   selectScenario(ui.home.scenarioId);
   render();
 }
 
-function manualSubmit(form) {
+function manualParsed(form) {
   const type = form.querySelector('[data-field="m-type"]').value;
   const num = (f) => parseInt(form.querySelector(`[data-field="${f}"]`)?.value, 10);
   const val = (f) => form.querySelector(`[data-field="${f}"]`)?.value;
@@ -263,113 +303,123 @@ function manualSubmit(form) {
     resource_restored: () => ({ resourceId: val('m-resource') }),
   }[type]();
   const label = form.querySelector('[data-field="m-type"]').selectedOptions[0].textContent.replace('…', '');
-  runTurn(`${label} ${Object.values(payload).join(' ')}`.trim(), { intent: 'shocks', shocks: [{ type, payload }], parser: 'form', source: 'form' });
+  return { input: `${label} ${Object.values(payload).join(' ')}`.trim(), parsed: { intent: 'shocks', shocks: [{ type, payload }], parser: 'form', source: 'form' } };
 }
 
 /* ---------- Rendering ---------- */
 
-function workspaceHtml() {
+function context() {
   const session = ui.session;
-  const head = currentRevision(session);
-  const prev = head.index > 0 ? session.revisions[head.index - 1] : null;
-  const scenario = getScenario(session.scenarioId) || head.state.scenario;
-  const changed = new Map((head.diff?.entries || []).map((e) => [e.taskId, e.kind]));
-  const axisStates = [head.state, ...(prev ? [prev.state] : []), session.revisions[0].state];
-  const end = Math.ceil((Math.max(...axisStates.map((x) => x.scenario.deadlineMin), head.plan.endMin, prev?.plan.endMin || 0) + 10) / 30) * 30;
-  const axis = { start: head.state.scenario.startMin, end, span: end - head.state.scenario.startMin };
-  const animate = ui.animateRevisionId === head.id;
-  const common = { axis, nowMin: session.nowMin, atMin: head.atMin, selectedTaskId: ui.selectedTaskId };
-  const charts = ui.view === 'compare' && prev
-    ? `<div class="compare">
-        ${renderGantt({ ...common, state: prev.state, plan: prev.plan, title: `Before · ${prev.id} ${prev.label}`, id: 'gantt-before', changed })}
-        ${renderGantt({ ...common, state: head.state, plan: head.plan, prevPlan: prev.plan, prevState: prev.state, title: `After · ${head.id} Plan B`, id: 'gantt-after', changed })}
-      </div>`
-    : renderGantt({
-      ...common, state: head.state, plan: head.plan, prevPlan: prev?.plan, prevState: prev?.state,
-      changed, ghosts: ui.ghosts && Boolean(prev), animate, id: 'gantt-main', title: '', rowH: ui.rowH,
-    });
-  const chartTitle = prev ? `Plan B · ${head.id}` : 'Original plan';
-  const chartSub = prev ? `after: ${head.label}` : 'validated baseline';
-  return `
-  <div class="workspace" id="main">
-    ${renderDock({ session, scenario, status: ui.status, parser: ui.parser, draft: ui.draft })}
-    <main class="center" aria-label="Plan">
-      ${ui.notice ? `<div class="notice" role="status">${esc(ui.notice)}</div>` : ''}
-      ${renderKpis({ head, prev, animate })}
-      ${ui.proposal ? renderInfeasible(ui.proposal, head.state.scenario) : ''}
-      ${!ui.proposal && ui.bannerRevisionId === head.id ? renderRecoveryBanner(head) : ''}
-      <section class="timeline-card ${ui.status === 'planning' ? 'is-replanning' : ''}" aria-label="Timeline">
-        <div class="tc-head">
-          <div><h2 class="tc-title">${esc(chartTitle)}</h2><div class="tc-sub muted small">${esc(chartSub)}</div></div>
-          ${renderToolbar({ ui, head, scenario: head.state.scenario, nowMin: session.nowMin })}
-        </div>
-        <div class="tc-body">${charts}</div>
-        ${ui.selectedTaskId ? renderTaskDetail({ head, taskId: ui.selectedTaskId, nowMin: session.nowMin }) : `<div class="chart-hint">
-          <span class="legend" aria-hidden="true"><span class="lg lg-done">done</span><span class="lg lg-prog">in progress</span><span class="lg lg-alt">alternative</span><span class="lg lg-chg">changed</span>${prev ? '<span class="lg lg-ghost">previous position</span>' : ''}</span>
-          <span class="muted small">Select any bar for details.</span></div>`}
-        <div class="replan-veil" aria-hidden="true"><span>Replanning…</span></div>
-      </section>
-    </main>
-    ${renderSidePanel({ tab: ui.sideTab, head, session, selectedTaskId: ui.selectedTaskId })}
-  </div>`;
+  const head = session ? currentRevision(session) : null;
+  const prev = head && head.index > 0 ? session.revisions[head.index - 1] : null;
+  const scenario = session ? (getScenario(session.scenarioId) || head.state.scenario) : null;
+  const ctx = { ui, session, head, prev, scenario, parser: ui.parser, boot: ui.boot, animate: Boolean(head && ui.animateRevisionId === head.id) };
+  if (head) {
+    ctx.changed = new Map((head.diff?.entries || []).map((e) => [e.taskId, e]));
+    ctx.axis = axisFor([head.state, ...(prev ? [prev.state] : []), session.revisions[0].state], [head.plan, prev?.plan]);
+  }
+  return ctx;
+}
+
+function viewHtml(ctx) {
+  if (!ctx.session && VIEWS.find((v) => v.id === ui.view)?.needsSession) ui.view = 'home';
+  switch (ui.view) {
+    case 'workspace': return renderWorkspace(ctx);
+    case 'assistant': return renderAssistantView(ctx);
+    case 'repair': return renderRepair(ctx);
+    case 'compare': return renderCompare(ctx);
+    case 'history': return renderHistory(ctx);
+    case 'settings': return renderSettings(ctx);
+    default:
+      if (!ui.preview) computePreview();
+      return renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
+  }
+}
+
+function shellHtml() {
+  const ctx = context();
+  const view = viewHtml(ctx);
+  return `<a class="skip" href="#main">Skip to content</a>
+    <div class="shell">
+      ${renderSidebar({ view: ui.view, session: ctx.session, head: ctx.head })}
+      <div class="main">
+        ${renderTopbar({ view: ui.view, session: ctx.session, head: ctx.head, parser: ui.parser })}
+        <div class="view-host">${view}</div>
+      </div>
+    </div>
+    ${ui.modal.open && ctx.session ? renderDisruptionModal(ctx) : ''}`;
 }
 
 function render() {
-  const head = ui.session ? currentRevision(ui.session) : null;
-  const bar = renderAppBar({ screen: ui.screen, session: ui.session, head, parser: ui.parser });
-  let body;
-  if (ui.screen === 'workspace' && ui.session) body = workspaceHtml();
-  else {
-    if (!ui.preview) computePreview();
-    body = renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
-  }
   const activeId = document.activeElement?.id;
-  root.innerHTML = `<a class="skip" href="#main">Skip to content</a>${bar}${body}`;
-  root.dataset.screen = ui.screen;
+  const head = ui.session ? currentRevision(ui.session) : null;
+  document.documentElement.classList.toggle('reduce-motion', ui.prefs.reduceMotion);
+  root.innerHTML = shellHtml();
+  if (fitCharts()) root.innerHTML = shellHtml();
+  root.dataset.view = ui.view;
+  root.dataset.revisions = String(ui.session?.revisions.length || 0);
   const conv = root.querySelector('.conversation');
   if (conv) conv.scrollTop = conv.scrollHeight;
-  if (fitCharts()) {
-    root.innerHTML = `<a class="skip" href="#main">Skip to content</a>${bar}${ui.screen === 'workspace' && ui.session ? workspaceHtml() : renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice })}`;
-    const c2 = root.querySelector('.conversation');
-    if (c2) c2.scrollTop = c2.scrollHeight;
-  }
   if (activeId) root.querySelector(`#${CSS.escape(activeId)}`)?.focus();
-  if (ui.animateRevisionId && head && ui.animateRevisionId === head.id) {
+  if (ui.modal.open && !root.contains(document.activeElement?.closest?.('.modal') || null)) {
+    root.querySelector(ui.modal.step === 'review' ? '[data-action="confirm-change"], [data-action="cancel-change"]' : '#dis-text')?.focus();
+  }
+  if (ui.animateRevisionId && head && ui.animateRevisionId === head.id && ui.view === 'workspace') {
     playTransition();
     ui.animateRevisionId = null;
   }
 }
 
 /**
- * Sizes timeline rows so the chart fills its card (desktop app shell). Returns true when the
- * row height changed and the view must be rendered once more, before any transition plays.
+ * Sizes timeline rows so charts fill their cards on desktop. Returns true when a row height changed
+ * and the view must be rendered once more, before any transition plays.
  */
 function fitCharts() {
-  let changedSize = false;
-  const main = root.querySelector('.tc-body');
-  if (main && ui.screen === 'workspace' && ui.view === 'plan') {
+  let changed = false;
+  const fit = (selector, key, plans, state, compact, extra = 0, minRow) => {
+    const el = root.querySelector(selector);
+    if (!el || !state) return;
+    const rowH = fitRowHeight({ state, plans, availablePx: el.clientHeight - 6 - extra, compact, minRow });
+    if (rowH !== ui[key]) { ui[key] = rowH; changed = true; }
+  };
+  if (ui.session) {
     const head = currentRevision(ui.session);
     const prev = head.index > 0 ? ui.session.revisions[head.index - 1] : null;
-    const rowH = fitRowHeight({ state: head.state, plans: [head.plan, prev?.plan], availablePx: main.clientHeight - 4, compact: false });
-    if (rowH !== ui.rowH) { ui.rowH = rowH; changedSize = true; }
+    if (ui.view === 'workspace') fit('.canvas-body', 'rowH', [head.plan, prev?.plan], head.state, false);
+    if (ui.view === 'compare' && ui.session.revisions.length > 1) {
+      const block = root.querySelector('.dual-block');
+      if (block) fit('.dual-block', 'compareRowH', [head.plan, prev?.plan], head.state, false, (block.querySelector('.dual-label')?.offsetHeight || 0) + 8, 34);
+    }
   }
-  const pv = root.querySelector('.pv-body');
-  if (pv && ui.screen === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') {
-    const rowH = fitRowHeight({ state: ui.preview.state, plans: [ui.preview.plan], availablePx: pv.clientHeight - 4, compact: true });
-    if (rowH !== ui.previewRowH) { ui.previewRowH = rowH; changedSize = true; }
-  }
-  return changedSize;
+  if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true);
+  return changed;
 }
 
-let resizeTimer = null;
-window.addEventListener('resize', () => {
-  clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { ui.rowH = null; ui.previewRowH = null; if (!document.getElementById('splash')) render(); }, 150);
-});
+function refreshPreview() {
+  computePreview();
+  const box = root.querySelector('#home-preview');
+  if (box) {
+    box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
+    if (fitCharts()) box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
+  }
+  const s = getScenario(ui.home.scenarioId);
+  const out = root.querySelector('[data-out="deadline"]');
+  if (out) out.textContent = formatClock(s, ui.home.form.deadlineMin);
+  const win = root.querySelector('[data-out="window"]');
+  if (win) win.textContent = `Start ${formatClock(s, s.startMin)} · window ${formatDuration(ui.home.form.deadlineMin - s.startMin)}`;
+  // The hero card summarises the same preview; re-render it without touching the form.
+  const hero = root.querySelector('.home-main');
+  if (hero) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
+    const fresh = tmp.querySelector('.home-main');
+    if (fresh) hero.replaceWith(fresh);
+  }
+}
 
-/** FLIP: start changed bars (and a moved deadline) at their previous coordinates, then let CSS transition them. */
+/** FLIP: start changed bars (and a moved deadline) at their previous coordinates, then transition. */
 function playTransition() {
-  const chart = root.querySelector('#gantt-main');
+  const chart = root.querySelector('#tl-main');
   if (!chart || reduceMotion()) return;
   const moving = [...chart.querySelectorAll('[data-from-left]')];
   const targets = moving.map((el) => ({ el, left: el.style.left, width: el.style.width, top: el.style.top }));
@@ -388,40 +438,55 @@ function playTransition() {
       t.el.style.width = t.width;
       t.el.style.top = t.top;
     }
-    setTimeout(() => chart.classList.remove('animating'), 1400);
+    setTimeout(() => chart.classList.remove('animating'), 1500);
   });
 }
 
 /* ---------- Events ---------- */
 
+function navigate(view) {
+  const def = VIEWS.find((v) => v.id === view);
+  if (!def || (def.needsSession && !ui.session)) return;
+  ui.view = view;
+  if (view !== 'workspace') ui.animateRevisionId = null;
+  persist();
+  render();
+  root.querySelector('.view-host')?.scrollTo?.(0, 0);
+}
+
 root.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-action]');
   if (!el || el.disabled) return;
   switch (el.dataset.action) {
+    case 'nav': navigate(el.dataset.view); break;
     case 'choose-scenario':
       selectScenario(el.dataset.id);
       render();
       root.querySelector(`.tile[data-id="${CSS.escape(el.dataset.id)}"]`)?.focus();
       break;
-    case 'go-home': ui.screen = 'home'; ui.proposal = null; render(); break;
-    case 'go-workspace': if (ui.session) { ui.screen = 'workspace'; render(); } break;
-    case 'home-tab': ui.home.tab = el.dataset.tab; refreshPreview(); break;
-    case 'side-tab': ui.sideTab = el.dataset.tab; persist(); render(); root.querySelector(`#tab-${el.dataset.tab}`)?.focus(); break;
+    case 'home-tab': ui.home.tab = el.dataset.tab; render(); break;
     case 'new-session': newSession(); break;
-    case 'quick': submitCommand(el.dataset.text, 'quick'); break;
-    case 'view': ui.view = el.dataset.view; persist(); render(); break;
-    case 'toggle-ghosts': ui.ghosts = el.checked; persist(); render(); break;
+    case 'quick': requestChange(el.dataset.text, 'quick', 'chat'); break;
+    case 'quick-review': ui.modal = { open: true, step: 'describe', draft: el.dataset.text }; requestChange(el.dataset.text, 'quick', 'modal'); break;
+    case 'open-disruption': ui.pending = null; ui.modal = { open: true, step: 'describe', draft: '' }; render(); break;
+    case 'close-modal': cancelPending(); break;
+    case 'modal-back': ui.modal = { ...ui.modal, step: 'describe', draft: ui.pending?.input || ui.modal.draft }; ui.pending = null; render(); break;
+    case 'dis-example': { const ta = root.querySelector('#dis-text'); if (ta) { ta.value = el.dataset.text; ta.focus(); } break; }
+    case 'confirm-change': if (ui.pending?.preview?.ok) confirmWith(ui.pending); break;
+    case 'cancel-change': cancelPending(); break;
+    case 'toggle-ghosts': ui.prefs.ghosts = el.checked; savePrefs(); render(); break;
+    case 'pref': ui.prefs[el.dataset.pref] = el.checked; savePrefs(); render(); break;
     case 'advance': runTurn(`Advance the clock ${el.dataset.min} minutes`, { intent: 'advance', minutes: Number(el.dataset.min), shocks: [], parser: 'form', source: 'form' }); break;
     case 'select-task': {
       const id = el.dataset.task;
       ui.selectedTaskId = ui.selectedTaskId === id ? null : id;
       persist();
       render();
-      root.querySelector(`[data-why="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       break;
     }
-    case 'undo': submitCommand('Undo the last change.', 'quick'); break;
-    case 'restore': submitCommand('Restore the original plan.', 'quick'); break;
+    case 'history-pick': ui.historyIndex = Number(el.dataset.index); render(); break;
+    case 'undo': requestChange('Undo the last change.', 'quick', 'chat'); break;
+    case 'restore': requestChange('Restore the original plan.', 'quick', 'chat'); break;
     case 'apply-option': chooseOption(Number(el.dataset.index)); break;
     case 'dismiss-proposal': ui.proposal = null; ui.status = 'idle'; render(); break;
     case 'dismiss-banner': ui.bannerRevisionId = null; render(); break;
@@ -432,15 +497,34 @@ root.addEventListener('click', (ev) => {
 root.addEventListener('submit', (ev) => {
   ev.preventDefault();
   const form = ev.target;
-  if (form.dataset.form === 'command') submitCommand(form.querySelector('#cmd').value, 'typed');
-  else if (form.dataset.form === 'setup') buildPlan();
-  else if (form.dataset.form === 'manual') manualSubmit(form);
+  switch (form.dataset.form) {
+    case 'command': requestChange(form.querySelector('#cmd').value, 'typed', 'chat'); break;
+    case 'topcmd': {
+      const text = form.querySelector('#topcmd').value;
+      if (text.trim()) { ui.modal = { open: true, step: 'describe', draft: text }; requestChange(text, 'typed', 'modal'); }
+      break;
+    }
+    case 'disruption': {
+      const text = form.querySelector('#dis-text').value;
+      ui.modal = { ...ui.modal, draft: text };
+      requestChange(text, 'typed', 'modal');
+      break;
+    }
+    case 'manual': {
+      const { input, parsed } = manualParsed(form);
+      prepareReview(input, parsed, 'modal');
+      break;
+    }
+    case 'setup': buildPlan(); break;
+    default: break;
+  }
 });
 
 root.addEventListener('input', (ev) => {
   const el = ev.target;
   if (el.id === 'cmd') { ui.draft = el.value; return; }
-  if (ui.screen !== 'home') return;
+  if (el.id === 'dis-text') { ui.modal.draft = el.value; return; }
+  if (ui.view !== 'home') return;
   const f = ui.home.form;
   if (el.dataset.field === 'deadline') f.deadlineMin = Number(el.value);
   else if (el.dataset.field === 'budget') f.budgetCap = Math.max(0, Math.min(1000, Math.round(Number(el.value) || 0)));
@@ -451,11 +535,18 @@ root.addEventListener('input', (ev) => {
 root.addEventListener('change', (ev) => {
   const el = ev.target;
   if (el.dataset.field === 'm-type') {
-    const slot = root.querySelector('[data-slot="m-param"]');
+    const slot = el.closest('form')?.querySelector('[data-slot="m-param"]');
     if (slot) slot.innerHTML = manualParam(el.value, currentRevision(ui.session));
     return;
   }
-  if (ui.screen !== 'home') return;
+  if (el.dataset.action === 'compare-pick') {
+    const value = Number(el.value);
+    if (el.dataset.side === 'a') ui.compareA = value;
+    else { ui.compareB = value; if ((ui.compareA ?? value - 1) >= value) ui.compareA = value - 1; }
+    render();
+    return;
+  }
+  if (ui.view !== 'home') return;
   if (el.dataset.field === 'person') ui.home.form.people[el.dataset.id] = el.checked;
   else if (el.dataset.field === 'resource') ui.home.form.resources[el.dataset.id] = el.checked;
   else return;
@@ -463,28 +554,34 @@ root.addEventListener('change', (ev) => {
 });
 
 document.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Escape' && ui.proposal) { ui.proposal = null; ui.status = 'idle'; render(); return; }
-  if (ev.key === '/' && ui.screen === 'workspace' && !['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+  const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+  if (ev.key === 'Escape') {
+    if (ui.modal.open || ui.pending) { cancelPending(); return; }
+    if (ui.proposal) { ui.proposal = null; ui.status = 'idle'; render(); return; }
+  }
+  if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+  if (ev.key === '/' && ui.session) {
     ev.preventDefault();
-    root.querySelector('#cmd')?.focus();
-    return;
-  }
-  // Arrow keys move between side-panel tabs (WAI-ARIA tabs pattern).
-  const tab = document.activeElement?.closest?.('[role="tab"]');
-  if (tab && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')) {
-    const tabs = [...root.querySelectorAll('[role="tab"]')];
-    const next = tabs[(tabs.indexOf(tab) + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-    ui.sideTab = next.dataset.tab;
+    (root.querySelector('#cmd') || root.querySelector('#topcmd'))?.focus();
+  } else if ((ev.key === 'd' || ev.key === 'D') && ui.session && !ui.modal.open) {
+    ev.preventDefault();
+    ui.pending = null;
+    ui.modal = { open: true, step: 'describe', draft: '' };
     render();
-    root.querySelector(`#tab-${ui.sideTab}`)?.focus();
   }
+});
+
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { ui.rowH = null; ui.previewRowH = null; ui.compareRowH = null; if (!document.getElementById('splash')) render(); }, 150);
 });
 
 window.addEventListener('error', (e) => {
   ui.notice = `Something went wrong in the page (${e.message}). Your saved plan is unchanged.`;
 });
 
-/* ---------- Boot with splash (status lines describe real work) ---------- */
+/* ---------- Boot: the splash shows only while real start-up work runs ---------- */
 
 function splashStep(fraction, text) {
   const bar = document.getElementById('splash-bar');
@@ -495,15 +592,9 @@ function splashStep(fraction, text) {
   if (status) status.textContent = text;
 }
 
-const frame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
-
 async function boot() {
   const t0 = performance.now();
-  const minMs = reduceMotion() ? 300 : 1200;
-  const maxMs = 2500;
-  splashStep(0.15, 'Loading planning engine…');
-  await frame();
-  splashStep(0.35, `Validating ${SCENARIOS.length} household scenarios…`);
+  splashStep(0.2, `Validating ${SCENARIOS.length} household scenarios…`);
   let checks = 0;
   for (const s of SCENARIOS) {
     if (validateScenario(s).ok) {
@@ -511,22 +602,23 @@ async function boot() {
       if (res.ok) checks += res.session.revisions[0].plan.validation.checks;
     }
   }
-  await frame();
-  splashStep(0.6, 'Checking assistant parser…');
-  await detectParser(Math.max(400, maxMs - 800 - (performance.now() - t0)));
-  splashStep(0.82, 'Restoring your session…');
+  splashStep(0.55, 'Checking assistant parser…');
+  await detectParser(1500);
+  splashStep(0.8, 'Restoring your session…');
   const resumed = restore();
   computePreview();
-  await frame();
-  splashStep(1, `Ready — ${checks} baseline checks passed${resumed ? ' · session restored' : ''}`);
-  const wait = Math.min(maxMs, Math.max(minMs, performance.now() - t0)) - (performance.now() - t0);
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  const ms = Math.round(performance.now() - t0);
+  ui.boot.summary = `${checks} baseline checks passed across ${SCENARIOS.length} scenarios in ${ms} ms${resumed ? ' · session restored' : ''}`;
+  splashStep(1, `Ready — ${checks} baseline checks passed`);
+  root.dataset.boot = ui.boot.summary;
   render();
   const splash = document.getElementById('splash');
   if (splash) {
     splash.classList.add('out');
-    setTimeout(() => splash.remove(), reduceMotion() ? 0 : 380);
+    setTimeout(() => splash.remove(), reduceMotion() ? 0 : 320);
   }
 }
 
 boot();
+
+export { esc };

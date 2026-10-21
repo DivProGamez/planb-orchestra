@@ -41,10 +41,11 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
   numbers (configurations searched, checks passed, tasks changed), plus a raw activity log.
 - **Change types:** deadline earlier/later, person unavailable now or from a time, person late, person back,
   equipment down or fixed, budget cut or raise, task overrun, skip a task — validated by one shared schema.
-- **Simulated Alexa+-style app:** a full-screen app shell with a splash screen that reports real boot work, a home
-  dashboard with a live preview that re-plans as constraints change, and a command center where the timeline is the
-  centerpiece — animated task moves, previous-position outlines, a recovery banner, and a tabbed panel for changes,
-  constraints, history and the agent log. All graphics are original SVG/CSS.
+- **Simulated Alexa+-style desktop app:** designed from Google Stitch reference screens and rebuilt in local
+  HTML/CSS/JS — sidebar navigation across seven screens, a live-preview home, a timeline-centred workspace with a
+  read-only task inspector, a disruption dialog that shows what was understood and a dry-run impact before anything is
+  replanned, a repair-stage view, synchronized Before/After timelines with a change map, a revision history with
+  snapshots, and a settings & transparency screen. All graphics are original SVG/CSS; every figure comes from the engine.
 - **Natural-language input:** a clearly labelled *limited local rule parser* (not an LLM), covered by a test corpus of
   34 change phrasings across the three scenarios plus 7 non-change/negative cases. An optional server-side adapter can use Claude through the Anthropic SDK
   (key read only on the server); its output is re-validated against the same schema and any failure falls back to
@@ -74,8 +75,8 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
 - 80 automated tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
   infeasible outcomes in the latest run) checked by the validator and an independent minute-by-minute brute-force
   checker — 0 violations — and story tests for all three scenarios.
-- 18/18 browser smoke checks in real Chrome at 1440×900, 1280×720, 1024×768, 768×1024 and 390×844 — including no page
-  scrolling on desktop, the splash timing, the live preview and the recovery banner — with no console errors.
+- 23/23 browser smoke checks in real Chrome at 1920×1080, 1440×900, 1280×720, 1024×768, 768×1024 and 390×844 — every
+  desktop screen fits without page scrolling — with no console errors.
 - Every explanation is generated from reason codes and plan data; nothing is free-text invention.
 
 ## What we learned

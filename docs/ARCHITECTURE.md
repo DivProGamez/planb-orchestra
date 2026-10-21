@@ -2,7 +2,8 @@
 
 ```
 Browser (all planning happens here, works offline)
- ├─ src/app.js            UI state machine, events, persistence calls, FLIP animation
+ ├─ src/app.js            controller: view routing, review-then-confirm flow, preferences, FLIP animation
+ ├─ src/views.js          screens: Home, Workspace, Assistant, Repair, Compare, History, Settings, disruption dialog
  ├─ src/components.js     pure view functions (data → escaped HTML)
  ├─ src/persistence.js    versioned localStorage envelope + migration, injectable storage
  └─ src/engine/
