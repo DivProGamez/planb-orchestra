@@ -1,0 +1,23 @@
+{
+  "name": "planb-orchestra",
+  "version": "1.0.0",
+  "description": "Simulated Alexa+-style household planning agent that repairs schedules when life changes, with a deterministic, independently validated constraint engine.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/app.js",
+    "test": "node --test \"tests/*.test.js\"",
+    "test:smoke": "node tests/smoke/browser-smoke.mjs",
+    "check:fixtures": "node scripts/check-fixtures.mjs"
+  },
+  "dependencies": {
+    "express": "5.1.0"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1"
+  }
+}

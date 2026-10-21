@@ -1,0 +1,68 @@
+{
+  "date": "2026-10-21T09:58:41.492Z",
+  "browser": "chrome.exe",
+  "passed": 15,
+  "failed": 0,
+  "results": [
+    {
+      "name": "welcome shows three scenario tiles and the simulation label",
+      "status": "PASS"
+    },
+    {
+      "name": "setup form builds a validated baseline plan",
+      "status": "PASS"
+    },
+    {
+      "name": "first shock (early guests + broken oven) replans with reasons and animation data",
+      "status": "PASS"
+    },
+    {
+      "name": "second shock on the same session after advancing the clock",
+      "status": "PASS"
+    },
+    {
+      "name": "refresh restores plan, revisions and clock",
+      "status": "PASS"
+    },
+    {
+      "name": "impossible budget is rejected with proven violation and two verified options",
+      "status": "PASS"
+    },
+    {
+      "name": "undo goes back one revision; restore returns to the original",
+      "status": "PASS"
+    },
+    {
+      "name": "structured change form uses the same engine path",
+      "status": "PASS"
+    },
+    {
+      "name": "unsupported phrasing fails visibly without changing the plan",
+      "status": "PASS"
+    },
+    {
+      "name": "keyboard: Escape dismisses the infeasible panel",
+      "status": "PASS"
+    },
+    {
+      "name": "1280×720: restored session renders without horizontal page overflow",
+      "status": "PASS"
+    },
+    {
+      "name": "1024×768 tablet: stacked layout without horizontal page overflow",
+      "status": "PASS"
+    },
+    {
+      "name": "other scenarios build feasible baselines",
+      "status": "PASS"
+    },
+    {
+      "name": "API outage does not blank the app (falls back to local parser)",
+      "status": "PASS"
+    },
+    {
+      "name": "no console errors during the run",
+      "status": "PASS"
+    }
+  ]
+}
