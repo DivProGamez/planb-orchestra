@@ -332,7 +332,7 @@ try {
     await shot(big, '21-settings-1500x900');
   });
 
-  await check('1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped', async () => {
+  await check('1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times, no rows cut), hero not clipped', async () => {
     await big.setViewportSize({ width: 1230, height: 908 });
     await nav(big, 'home');
     await big.waitForTimeout(500); // resize re-render is debounced
@@ -348,8 +348,14 @@ try {
         inside: tl.right <= card.right + 0.5 && tl.bottom <= card.bottom + 0.5,
         overlap: ax.some((a, i) => i > 0 && a.left < ax[i - 1].right),
         heroGap: hero.bottom - btn.bottom,
+        // bars or equipment uses cut off by the bottom edge of the chart
+        cut: [...document.querySelectorAll('#tl-preview .tl-body')].flatMap((b) => {
+          const edge = b.getBoundingClientRect().bottom - parseFloat(getComputedStyle(b).borderBottomWidth);
+          return [...b.querySelectorAll('.bar, .res-use')].filter((e) => e.getBoundingClientRect().bottom > edge + 0.5).map((e) => e.title.slice(0, 40));
+        }),
       };
     });
+    expect(r.cut.length === 0, `preview rows cut at the bottom: ${r.cut.join(' | ')}`);
     expect(r.scroll[0] <= 1 && r.scroll[1] <= 1, `preview scrolls inside its card (${r.scroll})`);
     expect(r.inside, 'preview timeline extends past its card');
     expect(!r.overlap, 'preview time labels overlap');

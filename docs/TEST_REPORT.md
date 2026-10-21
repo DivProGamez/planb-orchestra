@@ -1,6 +1,6 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T15:07Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T15:14Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
 ## `npm test` (node:test)
 
@@ -36,7 +36,7 @@ PASS  keyboard: D opens the dialog, Escape closes it and dismisses the crisis pa
 PASS  settings & transparency shows parser status, engine facts and preferences
 PASS  1920×1080: every screen fits without page scrolling
 PASS  1500×900 (three-column settings): nothing sticks out of its card on any screen
-PASS  1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped
+PASS  1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times, no rows cut), hero not clipped
 PASS  1280×720: restored session fits, compact disclosures visible
 PASS  1024×768 tablet: stacked layout without horizontal page overflow
 PASS  other scenarios build feasible baselines; outing replans a partner leaving

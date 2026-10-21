@@ -349,7 +349,7 @@ table.tasks { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
 .tl-axis { position: relative; height: 34px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .tl-axis span { position: absolute; top: 9px; transform: translateX(-50%); white-space: nowrap; }
 .tl-axis span:first-child { transform: none; }
-.tl-body { position: relative; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.tl-body { position: relative; box-sizing: content-box; padding-bottom: 3px; background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; } /* content-box: the border must not eat the last equipment row */
 .tick { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255, 255, 255, 0.04); }
 .lane { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
 .lane:first-of-type { border-top: 0; }

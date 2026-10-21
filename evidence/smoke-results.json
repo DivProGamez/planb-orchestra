@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-21T15:07:06.145Z",
+  "date": "2026-10-21T15:16:08.622Z",
   "browser": "chrome.exe",
   "passed": 26,
   "failed": 0,
@@ -81,7 +81,7 @@
       "status": "PASS"
     },
     {
-      "name": "1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times), hero not clipped",
+      "name": "1230×908 home: live preview fits its card (no inner scrollbars, no overlapping times, no rows cut), hero not clipped",
       "status": "PASS"
     },
     {

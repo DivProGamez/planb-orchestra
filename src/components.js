@@ -102,7 +102,7 @@ export function reasonBadges(reasons) {
 
 const SIZES = {
   full: { row: 58, bar: 42, res: 30, label: 176 },
-  compact: { row: 38, bar: 28, res: 18, label: 104 },
+  compact: { row: 38, bar: 28, res: 22, label: 104 },
 };
 
 function packHandsFree(entries) {
@@ -134,7 +134,7 @@ export function buildLayout(state, plans, size = SIZES.full) {
 export function fitRowHeight({ state, plans, availablePx, compact, minRow }) {
   const base = compact ? SIZES.compact : SIZES.full;
   const lanes = buildLayout(state, plans, base).lanes.reduce((n, l) => n + l.rows, 0);
-  const fixed = 34 + state.scenario.resources.length * base.res + 4;
+  const fixed = 34 + state.scenario.resources.length * base.res + 6;
   const fitted = Math.floor((availablePx - fixed) / Math.max(1, lanes));
   return Math.max(minRow ?? base.row, Math.min(compact ? 66 : 104, fitted));
 }
