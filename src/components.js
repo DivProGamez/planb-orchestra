@@ -166,6 +166,12 @@ function laneSub(s, lane, axis, clock) {
   return parts.join(' · ') || 'available';
 }
 
+/** Concise label for bars too narrow for the full title: the task's first keyword, else its longest word. */
+function shortLabel(title, keyword) {
+  const word = keyword || title.split(/[\s&,/]+/).filter(Boolean).reduce((best, w) => (w.length >= best.length ? w : best), '');
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 /**
  * opts: { state, plan, prevPlan, prevState, axis, nowMin, atMin, selectedTaskId, changed (Map taskId→entry),
  *         ghosts, animate, compact, rowH, id, kindChips, markWillChange, label }
@@ -238,7 +244,7 @@ export function renderTimeline(opts) {
     return `<button class="${cls}" data-action="select-task" data-task="${esc(st.taskId)}" style="--lane:${color};left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px"
       ${from ? `data-from-left="${from.left}" data-from-width="${from.width}" data-from-top="${from.top}"` : ''}
       aria-label="${esc(label)}" title="${esc(label)}${st.actualCost ? ` · $${st.actualCost}` : ''}">
-      ${chip}<span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span>
+      ${chip}<span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span><span class="bar-short" aria-hidden="true">${esc(shortLabel(st.title, st.variantId === 'base' ? task?.keywords?.[0] : null))}</span>
       ${opts.compact ? '' : `<span class="bar-meta">${esc(clock(st.startMin))} · ${st.durationMin}m${st.durationMin < st.fullDurationMin ? ` (was ${st.fullDurationMin})` : ''}${st.variantId !== 'base' ? ' · alt' : ''}</span>`}
     </button>`;
   }).join('');
@@ -269,11 +275,11 @@ export function renderTimeline(opts) {
   ].join('');
 
   return `
-  <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px">
+  <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${[...changed.values()].some((e) => e.kind !== 'Unchanged') ? 'has-changes' : ''} ${selectedTaskId && plan.scheduled.some((st) => st.taskId === selectedTaskId) ? 'has-selection' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px">
     <div class="tl-grid">
       <div class="tl-labels" style="height:${layout.height + AXIS_H}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
       <div class="tl-main">
-        <div class="tl-axis">${ticks.map((m) => `<span class="at ${m === axis.end ? 'axis-end' : ''}" style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}<div class="axis-marks">${marks}</div></div>
+        <div class="tl-axis">${ticks.map((m) => `<span class="at ${m === axis.end ? 'axis-end' : ''} ${(m - axis.start) % 60 ? 'half' : ''}" style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}<div class="axis-marks">${marks}</div></div>
         <div class="tl-body" style="height:${layout.height}px">
           ${ticks.map((m) => `<div class="tick" style="left:${pct(axis, m)}%"></div>`).join('')}
           ${shades}${resRows}${ghostHtml}${bars}${prevDeadline}${deadline}${now}

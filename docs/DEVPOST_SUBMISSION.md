@@ -75,6 +75,9 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
 - 80 automated tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
   infeasible outcomes in the latest run) checked by the validator and an independent minute-by-minute brute-force
   checker — 0 violations — and story tests for all three scenarios.
+- 13/13 release QA checks (corrupted saved state, cancelled/unsupported/impossible changes, figures vs saved state,
+  undo/restore across reload, keyboard, accessible names, dialog fit, reduced motion) and a populated-screen audit of all
+  three scenarios with 0 layout problems.
 - 26/26 browser smoke checks in real Chrome at 1920×1080, 1500×900, 1440×900, 1230×908, 1280×720, 1024×768, 768×1024 and 390×844 — every
   desktop screen fits without page scrolling — with no console errors.
 - Every explanation is generated from reason codes and plan data; nothing is free-text invention.

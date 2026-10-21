@@ -103,14 +103,14 @@ try {
   await ready(page);
   await page.evaluate(() => localStorage.clear());
 
-  await check('splash walks through the real start-up steps (about 2.4 s) and reports the validated checks', async () => {
+  await check('splash walks through the real start-up steps (about 1.2 s) and reports the validated checks', async () => {
     const t0 = Date.now();
     await page.reload();
     await ready(page);
     const elapsed = Date.now() - t0;
     const lines = await page.evaluate(() => window.__splash);
     expect(lines.some((l) => /^Ready — \d+ baseline checks passed/.test(l)), `splash lines: ${lines.join(' | ')}`);
-    expect(elapsed >= 2000 && elapsed < 4000, `splash took ${elapsed} ms (expected about 2.4 s)`);
+    expect(elapsed >= 1000 && elapsed < 3000, `splash took ${elapsed} ms (expected about 1.2 s)`);
     for (const step of ['Loading planning engine', 'Validating 3 household scenarios', 'Checking assistant parser', 'Restoring your session']) {
       expect(lines.some((l) => l.startsWith(step)), `splash step missing: ${step}`);
     }

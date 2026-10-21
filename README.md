@@ -34,11 +34,17 @@ npm run test:smoke
 ```
 
 ```bash
+npm run test:qa
+```
+
+```bash
 npm run audit:screens
 ```
 
 `npm run test:smoke` drives the real UI in an installed Chrome or Edge (`CHROME_PATH` overrides detection) and
-writes screenshots to `evidence/`. `npm run audit:screens` walks all three scenarios through build → review → confirm →
+writes screenshots to `evidence/`. `npm run test:qa` checks edge cases and accessibility (corrupted saved state,
+cancelled and unsupported changes, impossible budgets, consecutive disruptions, displayed figures vs saved state,
+undo/restore across reload, keyboard and focus, accessible names, dialog fit, reduced motion). `npm run audit:screens` walks all three scenarios through build → review → confirm →
 every screen → undo → reload at 1920×1080, fails on layout problems (page scroll, marker or ghost labels over bars, rows
 cut at the chart edge, controls outside their card, console errors) and saves 31 screenshots to `evidence/populated/`.
 `node scripts/check-fixtures.mjs` prints each scenario's demo story through the
@@ -47,29 +53,35 @@ real engine.
 ## Interface
 
 A desktop app shell designed from the Google Stitch reference screens ("Obsidian Orchestra" tokens), implemented in
-local HTML/CSS/JS — no CDN, web fonts or remote images. Desktop screens fit 1920×1080 and 1440×900 without page
-scrolling; long content scrolls inside its panel.
+local HTML/CSS/JS — no CDN, web fonts or remote images. Desktop screens fit 1920×1080, 1440×900 and 1280×720 without
+page scrolling; long content scrolls inside its panel.
 
 - **Splash:** original PlanB mark with progress ring and bar, shown only while real start-up work runs (validating
   the three scenarios — it reports the actual number of checks — checking the parser, restoring the session).
 - **Sidebar:** Scenarios & Home · Plan Workspace · Assistant & Copilot · Repair Workflow · Timeline Compare ·
   History & Revisions · Settings & Transparency, plus the live session card (scenario, revision, clock, validation).
-- **Top bar:** breadcrumb, disclosure pills (simulated Alexa+, deterministic local engine, parser in use), a command
+- **Top bar:** scenario with its current revision and validated state, a short *Simulated Alexa+ demo* pill and the
+  parser actually in use (engine details live in Settings & Transparency), a command
   box ("Tell PlanB what changed…"), simulation clock, Undo and **Simulate disruption**.
 - **Home:** selected-scenario hero with real baseline stats, scenario cards, a **live preview** that re-plans as you
   change the deadline, budget, helpers or equipment, and the constraints form.
 - **Plan Workspace:** KPI row, recovery banner, toolbar (viewport, clock), the **timeline canvas** as the centerpiece
   (avatar lanes, equipment lanes with capacity sub-lanes, animated moves, previous-position outlines, moving deadline,
-  now marker) and a read-only **Task Inspector** (assignment, window, duration, cost, equipment, dependencies,
+  now marker; once a plan has changed, unchanged tasks step back so the changes stand out; bars too narrow for their
+  title show one word of it, with the full title in the tooltip and inspector) and a read-only **Task Inspector** (assignment, window, duration, cost, equipment, dependencies,
   listed fallbacks, and the reason codes for its latest change).
 - **Review before replanning:** every change — typed in the assistant or the command box, picked as a quick command,
   or entered in the structured form — first shows *what was understood*, the constraint deltas and a dry-run impact.
   Nothing is committed until **Apply & replan** (the preference can be turned off in Settings). Undo is unchanged.
 - **Assistant & Copilot:** conversation with per-reply agent steps and contextual actions (Before/After, Repair
   stages, Undo), pending-change panel, plan status and parser status.
-- **Repair Workflow:** the six stages recorded for the latest request, the committed-change ledger and the raw tool log.
+- **Repair Workflow:** the six stages recorded for the latest request, each with a headline figure read from the
+  agent's own trace (changes understood, configurations searched, checks, tasks changed, revision saved); every committed
+  change with its before/after track and reasons; an Outcome card (previous → current revision) and the raw tool log.
 - **Timeline Compare:** pick any two revisions; synchronized Plan A / Plan B timelines (tasks that change are marked in
-  A, kind chips in B), before→after KPIs, and a change map with real reason codes.
+  A, kind chips in B), a result summary (feasible · tasks changed · checks, then deadline, finish, buffer and cost before
+  → after), and a change map with real reason codes plus duration, cost and equipment differences; selecting a change
+  highlights that task in both plans.
 - **History & Revisions:** revision timeline, snapshot inspection (timeline + diff table), rejected and undone requests.
 - **Settings & Transparency:** what is simulated, which parser runs, engine facts, preferences, data storage, shortcuts.
 - Keyboard: `/` focus input, `D` disruption dialog, `Esc` cancel/close. Responsive down to phone width; respects
@@ -128,7 +140,7 @@ server/   app.js (Express: /api/health, /api/intent, static), llm-adapter.js, sc
 src/      index.html, styles.css, app.js (controller), views.js (screens), components.js (timeline & primitives), persistence.js
 src/engine/  model, validate, scheduler, shocks, diff, reasons, session, parser, agent
 src/data/scenarios.js   seeded fixtures (deep-frozen)
-tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (26 browser checks)
+tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (26 journey checks, 13 release QA checks, populated-screen audit)
 docs/     ARCHITECTURE, DEMO_SCRIPT, DEVPOST_SUBMISSION, TEST_REPORT, PRODUCT_FEEDBACK, FRICTION_LOG, COMPETITION_CHECKLIST
 ```
 

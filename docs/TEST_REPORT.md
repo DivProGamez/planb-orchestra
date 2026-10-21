@@ -1,11 +1,13 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T15:55Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from one run of every suite on 2026-10-21T18:15Z (Windows 11, Node v24.11.0, installed Google Chrome).
+Each block below is copied from that run's output; nothing is hand-written as a result.
 
-## `npm test` (node:test)
+## `npm test` (node:test) — engine, validator, parser, persistence, server, offline LLM adapter
 
 Suites: planner (G1 gates), shocks/reasons, parser corpus (34 phrasings + 7 negatives), new change types,
-scenario stories (all three), persistence, integration + server, offline LLM adapter (stub client), randomized audit.
+scenario stories (all three), persistence (incl. corrupt/old/newer saved state), integration + server,
+offline LLM adapter (stub client), randomized audit.
 
 ```
 ℹ feasible replans checked: 911; infeasible outcomes checked: 148
@@ -14,10 +16,10 @@ scenario stories (all three), persistence, integration + server, offline LLM ada
 ℹ fail 0
 ```
 
-## `npm run test:smoke` (playwright-core driving installed Chrome)
+## `npm run test:smoke` — the demo journey across every screen and viewport
 
 ```
-PASS  splash walks through the real start-up steps (about 2.4 s) and reports the validated checks
+PASS  splash walks through the real start-up steps (about 1.2 s) and reports the validated checks
 PASS  every sidebar icon opens its screen before a plan exists (with a build action)
 PASS  home dashboard: scenarios, live preview reacting to constraints, honest labels, no scroll
 PASS  build a validated baseline plan from the hero action
@@ -46,21 +48,44 @@ PASS  no console errors during the run
 Smoke: 26 passed, 0 failed. Screenshots in evidence/
 ```
 
-Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.
+## `npm run test:qa` — functional edge cases and accessibility
 
-## `npm run audit:screens` (populated screens, 1920×1080)
+```
+PASS  corrupted saved state: app starts clean, explains, and stays usable
+PASS  displayed figures match the saved session (header, KPIs, sidebar)
+PASS  cancelled preview and unsupported phrasing never change the plan
+PASS  consecutive disruptions: each is validated and recorded (r1 → r3)
+PASS  narrow bars: each short label is a whole word of that task (title or keyword)
+PASS  Before/After: selecting a change highlights that task in Plan A and Plan B
+PASS  impossible budget: nothing committed until a verified option is chosen
+PASS  undo and restore original keep history consistent and survive reload
+PASS  keyboard: D opens the dialog with focus in the text box, Escape closes it, focus ring visible
+PASS  every button, link and field has an accessible name (all screens)
+PASS  disruption dialog fits with its actions visible at 1280×720 and 1440×900
+PASS  reduced motion (system setting): changes apply without animations
+PASS  no console errors, warnings or uncaught exceptions
+Release QA: 13 passed, 0 failed.
+```
 
-All three scenarios: build → assistant review (plan unchanged until confirmed) → confirm → workspace, inspector,
-assistant, repair (six completed stages), before/after, history → undo → reload (undo persisted), plus settings.
+## `npm run audit:screens` — populated screens, all three scenarios, 1920×1080
+
+Build → assistant review (plan unchanged until confirmed) → confirm → workspace, inspector, assistant, repair
+(six completed stages), before/after, history → undo → reload (undo persisted), plus settings. Fails on page scroll,
+marker or ghost labels over bars, rows cut at the chart edge, controls outside their card, or console errors.
 
 ```
 Populated audit: 31 screenshots in evidence/populated/, 0 problem(s)
 ```
 
+Screenshots: `evidence/` (smoke, all viewports), `evidence/populated/` (31 populated screens),
+`evidence/story/` (Plan A → disruption → review → repair in motion → Plan B → Repair Workflow → Before/After).
+
 ## Not tested
 
 - Live LLM requests (no API key available). The adapter is exercised only with an injected stub client; nothing is
   claimed about a real model's parsing accuracy, latency or cost.
-- Real Alexa devices or APIs (none are used; this is a simulation).
+- Real Alexa devices, voice, or Alexa APIs (none are used; this is a simulation).
 - Browsers other than desktop Chrome (phone/tablet sizes were emulated by viewport, not real devices).
-- Screen readers were not tested; ARIA roles and labels are present but unverified with assistive technology.
+- Screen readers were not run. Accessible names, focus order/visibility, Escape handling and reduced motion are
+  checked automatically (`npm run test:qa`); assistive-technology behaviour itself is unverified.
+- Colour contrast was set from token values (secondary text ≥4.5:1 on card surfaces), not measured per element.

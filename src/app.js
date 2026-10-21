@@ -396,7 +396,7 @@ function fitCharts() {
       fit('.snap-tl', 'historyRowH', [R.plan], R.state, true, 0, 30, 92);
     }
   }
-  if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true);
+  if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true, 0, undefined, 96);
   return changed;
 }
 
@@ -488,6 +488,8 @@ root.addEventListener('click', (ev) => {
       ui.selectedTaskId = ui.selectedTaskId === id ? null : id;
       persist();
       render();
+      // keep the linked change-map / ledger entry in view
+      root.querySelector('.map-row.is-selected, .ledger-row.is-selected')?.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
       break;
     }
     case 'history-pick': ui.historyIndex = Number(el.dataset.index); render(); break;
@@ -598,11 +600,11 @@ function splashStep(fraction, text) {
   if (status) status.textContent = text;
 }
 
-const SPLASH_MIN_MS = 2400; // minimum time on screen, so the start-up steps can be read
+const SPLASH_MIN_MS = 1200; // short floor so the real start-up steps are legible; no extra wait beyond it
 
 async function boot() {
   const t0 = performance.now();
-  const minMs = reduceMotion() ? 700 : SPLASH_MIN_MS;
+  const minMs = reduceMotion() ? 400 : SPLASH_MIN_MS;
   const pace = async (fraction) => {
     const target = minMs * fraction;
     const wait = target - (performance.now() - t0);

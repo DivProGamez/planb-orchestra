@@ -60,12 +60,12 @@ export function renderTopbar({ view, session, head, parser }) {
   <header class="topbar" role="banner">
     <div class="crumbs">
       <span class="muted">Orchestra</span><span class="crumb-sep">›</span>
-      ${s ? `<span class="crumb-chip">${scenarioIcon(session.scenarioId, 16)}${esc(s.name)}</span>` : ''}
+      ${s ? `<span class="crumb-chip" title="${esc(s.name)} — current revision ${esc(head.id)}">${scenarioIcon(session.scenarioId, 16)}<span class="crumb-name">${esc(s.name)}</span><span class="crumb-rev mono">${esc(head.id)}</span></span>
+      <span class="crumb-state" title="The current plan passed the independent validator (${head.plan.validation.checks} checks, 0 violations)"><span class="dot dot-ok"></span>Validated</span>` : ''}
       ${s ? '' : `<span class="crumb-current">${esc(current?.label || '')}</span>`}
     </div>
     <div class="topbar-pills">
-      <span class="pill pill-sim" title="Demo simulation. Not an Amazon product, not connected to any Alexa device or account."><span class="dot"></span><span class="long">Simulated Alexa+ experience · demo</span><span class="short">Simulated Alexa+ demo</span></span>
-      <span class="pill pill-engine" title="Plans are computed in this browser by a deterministic scheduler and checked by an independent validator"><span class="dot"></span>Engine: deterministic · local</span>
+      <span class="pill pill-sim" title="Demo simulation. Not an Amazon product, not connected to any Alexa device or account. Details in Settings &amp; Transparency."><span class="dot"></span>Simulated Alexa+ demo</span>
       ${parserPill(parser, true)}
     </div>
     ${session ? `<form class="topcmd" data-form="topcmd" role="search">
@@ -599,6 +599,17 @@ const STAGE_METRIC = {
   'Nothing committed': (d) => { const m = d.match(/at (r\d+)/); return m ? [m[1], 'kept until you choose'] : null; },
 };
 
+/** Duration, cost and equipment differences for one change, read from the diff snapshots. */
+function changeFacts(e, s) {
+  if (!e.before || !e.after) return '';
+  const out = [];
+  if (e.before.durationMin !== e.after.durationMin) out.push(`<span>${e.before.durationMin} min ${icon('arrow', 11)} <strong>${e.after.durationMin} min</strong></span>`);
+  if (e.before.cost !== e.after.cost) out.push(`<span>$${e.before.cost} ${icon('arrow', 11)} <strong>$${e.after.cost}</strong></span>`);
+  const eq = (list) => (list && list.length ? list.map((r) => resourceName(s, r)).join(', ') : 'no equipment');
+  if (eq(e.before.resources) !== eq(e.after.resources)) out.push(`<span>${esc(eq(e.before.resources))} ${icon('arrow', 11)} <strong>${esc(eq(e.after.resources))}</strong></span>`);
+  return out.join('');
+}
+
 /** Before/after position of one task on a shared axis (dashed = before, solid = after). */
 function mapTrack(e, axis) {
   const bx = (st) => `left:${((st.startMin - axis.start) / axis.span) * 100}%;width:${((st.endMin - st.startMin) / axis.span) * 100}%`;
@@ -753,6 +764,7 @@ export function renderCompare(ctx) {
       <div class="map-facts small">
         <span>${e.before ? esc(formatWindow(s, e.before.startMin, e.before.endMin)) : '—'} ${icon('arrow', 11)} <strong>${e.after ? esc(formatWindow(s, e.after.startMin, e.after.endMin)) : 'removed'}</strong></span>
         ${e.before && e.after && e.before.personId !== e.after.personId ? `<span>${esc(personName(s, e.before.personId))} ${icon('arrow', 11)} <strong>${esc(personName(s, e.after.personId))}</strong></span>` : ''}
+        ${changeFacts(e, s)}
       </div>
       ${e.reasons.length ? `<ul class="reasons">${reasonBadges(e.reasons)}</ul>` : '<p class="muted small">Non-adjacent revisions: per-step reasons are listed on each revision in History.</p>'}
     </li>`;
@@ -766,11 +778,14 @@ export function renderCompare(ctx) {
     sub: `${changedEntries.length} task${changedEntries.length === 1 ? '' : 's'} changed between <strong>${esc(A.id)}</strong> and <strong>${esc(B.id)}</strong> ${kindCounts}`,
     actions: `<div class="rev-pick"><span class="pill pill-a">Plan A</span>${select('a', aIndex, bIndex - 1)}${icon('arrow', 14)}<span class="pill pill-b">Plan B</span>${select('b', bIndex, revs.length - 1, 1)}</div>`,
   })}
-    <section class="kpis kpis-4" aria-label="Comparison summary">
-      ${stat('Finish', esc(clock(A.plan.endMin)), `<strong>${esc(clock(B.plan.endMin))}</strong>`, delta(B.plan.endMin - A.plan.endMin, 'min', true), 'flag')}
+    <section class="kpis cmp-summary" aria-label="Comparison summary">
+      <div class="kpi kpi-ok cmp-verdict"><div class="kpi-top"><span class="kpi-label">Result · ${esc(B.id)}</span><span class="kpi-icon">${icon('shield', 16)}</span></div>
+        <div class="kpi-value">${icon('check', 18)} Feasible</div>
+        <div class="kpi-sub">${changedEntries.length} of ${entries.length} tasks changed · ${B.plan.validation.checks} checks · 0 violations</div></div>
       ${stat('Deadline', esc(formatClock(s, A.state.scenario.deadlineMin)), `<strong>${esc(clock(B.state.scenario.deadlineMin))}</strong>`, delta(B.state.scenario.deadlineMin - A.state.scenario.deadlineMin, 'min'), 'clock')}
+      ${stat('Finish', esc(clock(A.plan.endMin)), `<strong>${esc(clock(B.plan.endMin))}</strong>`, delta(B.plan.endMin - A.plan.endMin, 'min', true), 'flag')}
+      ${stat('Buffer before deadline', esc(formatDuration(A.plan.slackMin)), `<strong>${esc(formatDuration(B.plan.slackMin))}</strong>`, delta(B.plan.slackMin - A.plan.slackMin, 'min'), 'clock')}
       ${stat('Total cost', `$${A.plan.totalCost}`, `<strong>$${B.plan.totalCost}</strong>`, delta(B.plan.totalCost - A.plan.totalCost, '$', true), 'money')}
-      ${stat('Scheduled tasks', `${A.plan.scheduled.length}`, `<strong>${B.plan.scheduled.length}</strong>`, delta(B.plan.scheduled.length - A.plan.scheduled.length), 'layers')}
     </section>
     <div class="compare-grid">
       <section class="card dual" aria-label="Synchronized timelines">

@@ -6,12 +6,12 @@ Checked = verified in this repository. Unchecked = not done or needs the operato
 ## Build (verified)
 
 - [x] Running app with plan → shock → replan → diff → second shock → undo → reload → infeasible flow (smoke test, `docs/TEST_REPORT.md`).
-- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` (80 unit/integration/scenario/corpus/adapter/audit tests, 26 browser checks).
+- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` (80 unit/integration/scenario/corpus/adapter/audit tests, 26 browser journey checks, 13 release QA checks, populated-screen audit with 31 screenshots).
 - [x] All three baseline scenarios independently validated; hard and impossible cases tested.
 - [x] UI labels the simulated Alexa+ experience and the limited local parser; no Amazon logo or endorsement claim.
 - [x] `.env` ignored; `.env.example` contains names only; no keys, passwords or personal data in the repo.
 - [x] Screenshots in `evidence/` come from the real app (smoke run).
-- [x] MIT `LICENSE`; README commands (`npm install`, `npm start`, `npm test`, `npm run test:smoke`) run in this checkout.
+- [x] MIT `LICENSE`; README commands (`npm install`, `npm start`, `npm test`, `npm run test:smoke`, `npm run test:qa`, `npm run audit:screens`) run in this checkout.
 - [x] English demo script (`docs/DEMO_SCRIPT.md`) and Devpost draft (`docs/DEVPOST_SUBMISSION.md`).
 
 ## Operator actions (not done)

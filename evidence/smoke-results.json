@@ -1,11 +1,11 @@
 {
-  "date": "2026-10-21T17:10:54.951Z",
+  "date": "2026-10-21T18:14:26.046Z",
   "browser": "chrome.exe",
   "passed": 26,
   "failed": 0,
   "results": [
     {
-      "name": "splash walks through the real start-up steps (about 2.4 s) and reports the validated checks",
+      "name": "splash walks through the real start-up steps (about 1.2 s) and reports the validated checks",
       "status": "PASS"
     },
     {
