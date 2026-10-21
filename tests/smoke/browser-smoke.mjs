@@ -63,6 +63,9 @@ async function newPage(width, height, { expectNetworkErrors = false } = {}) {
 }
 const shot = (page, name) => page.screenshot({ path: path.join(evidence, `${name}.png`) });
 const revs = (page) => page.locator('.rev').count();
+// The app shows a short splash on every load; wait until it has been removed.
+const ready = (p) => p.waitForSelector('#splash', { state: 'detached', timeout: 6000 });
+const pageScroll = (p) => p.evaluate(() => ({ x: document.documentElement.scrollWidth - innerWidth, y: document.documentElement.scrollHeight - innerHeight }));
 async function send(page, text, expectRevs) {
   await page.fill('#cmd', text);
   await page.press('#cmd', 'Enter');
@@ -74,13 +77,32 @@ async function send(page, text, expectRevs) {
 try {
   const page = await newPage(1440, 900);
   await page.goto(base);
+  await ready(page);
   await page.evaluate(() => localStorage.clear());
-  await page.reload();
+
+  await check('splash reports real boot steps and leaves within 2.5–3 s', async () => {
+    const t0 = Date.now();
+    await page.reload();
+    await page.waitForFunction(() => (document.querySelector('#splash-status')?.textContent || '').startsWith('Ready'), null, { timeout: 4000 });
+    const status = await page.locator('#splash-status').textContent();
+    expect(/^Ready — \d+ baseline checks passed/.test(status), `unexpected splash status: ${status}`);
+    await shot(page, '00-splash-1440');
+    await ready(page);
+    const elapsed = Date.now() - t0;
+    expect(elapsed < 3200, `splash took ${elapsed} ms`);
+  });
 
   await check('welcome shows three scenario tiles and the simulation label', async () => {
     expect(await page.locator('.tile').count() === 3, 'expected 3 tiles');
     expect(await page.getByText('Simulated Alexa+ experience').count() > 0, 'missing simulated label');
     expect(await page.getByText('limited local rules (not an LLM)').count() > 0, 'missing local-parser label');
+    const sc = await pageScroll(page);
+    expect(sc.x <= 0 && sc.y <= 0, `home dashboard scrolls at 1440×900 (${sc.x}, ${sc.y})`);
+    expect(await page.locator('#gantt-preview .bar').count() > 0, 'live preview timeline missing');
+    await page.fill('#f-budget', '40');
+    await page.waitForSelector('.pill-bad');
+    await page.fill('#f-budget', '100');
+    await page.waitForSelector('.pill-ok');
     await shot(page, '01-welcome-1440');
   });
 
@@ -92,6 +114,9 @@ try {
     await page.waitForSelector('.workspace');
     expect(await revs(page) === 1, 'expected revision r0');
     expect((await page.locator('.kpi-ok').textContent()).includes('0 violations'), 'baseline not validated');
+    await page.waitForTimeout(500);
+    const sc = await pageScroll(page);
+    expect(sc.x <= 0 && sc.y <= 0, `workspace scrolls at 1440×900 (${sc.x}, ${sc.y})`);
     await shot(page, '03-baseline-1440');
   });
 
@@ -102,6 +127,7 @@ try {
     expect(reasons.some((r) => /alternative used/i.test(r)), 'no ALTERNATIVE_USED badge');
     expect(await page.locator('.bar:has-text("Pan-sear")').count() === 1, 'pan-sear alternative not on chart');
     expect(await page.locator('.ghost').count() > 0, 'no previous-position ghosts');
+    expect(/Plan B ready — r1/.test(await page.locator('.recovery').textContent()), 'recovery banner missing');
     const steps = await page.locator('.msg-assistant .trace-wrap[open] .tr-step').allTextContents();
     for (const want of ['Intent detected', 'Constraints changed', 'Scheduling performed', 'Validation passed', 'Differences explained', 'Plan committed']) {
       expect(steps.includes(want), `agent step "${want}" not shown (got: ${steps.join(', ')})`);
@@ -124,6 +150,7 @@ try {
 
   await check('refresh restores plan, revisions and clock', async () => {
     await page.reload();
+    await ready(page);
     await page.waitForSelector('.workspace');
     expect(await revs(page) === 3, 'revisions lost on reload');
     expect((await page.locator('.clock strong').textContent()) === '4:40 PM', 'clock lost on reload');
@@ -151,6 +178,8 @@ try {
   });
 
   await check('structured change form uses the same engine path', async () => {
+    await page.click('[data-tab="constraints"]');
+    expect(await page.locator('#panel-constraints').isVisible(), 'constraints tab did not open');
     await page.selectOption('[data-field="m-type"]', 'person_unavailable');
     await page.selectOption('[data-field="m-person"]', 'leila');
     await page.click('form[data-form="manual"] button[type="submit"]');
@@ -188,11 +217,15 @@ try {
   });
 
   const small = await newPage(1280, 720);
-  await check('1280×720: restored session renders without horizontal page overflow', async () => {
+  await check('1280×720: restored session fits the viewport with no page scroll', async () => {
     await small.goto(base);
+    await ready(small);
     await small.waitForSelector('.workspace');
-    const overflow = await small.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    expect(overflow <= 0, `horizontal overflow ${overflow}px`);
+    await small.waitForTimeout(500);
+    const sc = await pageScroll(small);
+    expect(sc.x <= 0 && sc.y <= 0, `page scrolls at 1280×720 (${sc.x}, ${sc.y})`);
+    expect(await small.getByText('Simulated Alexa+ demo').isVisible(), 'compact simulation disclosure not visible');
+    expect(await small.getByText('Local rules, not an LLM').isVisible(), 'compact parser disclosure not visible');
     await shot(small, '10-workspace-1280x720');
   });
 
@@ -221,6 +254,7 @@ try {
     const offline = await newPage(1280, 720, { expectNetworkErrors: true });
     await offline.route('**/api/**', (route) => route.abort());
     await offline.goto(base);
+    await ready(offline);
     await offline.waitForSelector('.workspace');
     await offline.waitForFunction(() => document.body.textContent.includes('not an LLM'));
     await send(offline, 'Can we still arrive on time?');
@@ -234,6 +268,7 @@ try {
     for (const [w, h] of [[390, 844], [768, 1024]]) {
       await p.setViewportSize({ width: w, height: h });
       await p.goto(base);
+      await ready(p);
       await p.waitForSelector('.tile');
       let overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow <= 0, `landing overflow ${overflow}px at ${w}px`);

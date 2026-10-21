@@ -37,6 +37,23 @@ npm run test:smoke
 writes screenshots to `evidence/`. `node scripts/check-fixtures.mjs` prints each scenario's demo story through the
 real engine.
 
+## Interface
+
+A full-screen app shell (no page scrolling on desktop ≥ 1100×640; panels scroll internally):
+
+- **Splash** (1.2–2.5 s): original PlanB mark, progress ring and bar. Its status lines describe the real boot work —
+  loading the engine, validating the three scenarios (it reports the actual number of checks), checking which parser is
+  available, restoring a saved session.
+- **App bar:** logo, Home › scenario breadcrumb with the current revision, both disclosure badges (simulated Alexa+,
+  parser in use), simulation clock, Undo / Restore / New session.
+- **Home dashboard:** scenario cards, a **live preview** (timeline or task table) that re-plans as you change the
+  deadline, budget, helpers or equipment, and the setup form with the list of guarantees the validator checks.
+- **Command center:** conversation dock with per-reply agent steps; KPI strip; recovery banner after each change;
+  the timeline as the centerpiece (rows sized to fill the space, animated task moves, dashed previous positions,
+  moving deadline marker, sweep highlight); crisis panel for impossible requests; tabbed side panel (Changes,
+  Constraints + structured form, History, Agent log).
+- Responsive down to phone width; respects `prefers-reduced-motion`.
+
 ## What it does (tested — see `docs/TEST_REPORT.md`)
 
 **Planning engine**
@@ -90,7 +107,7 @@ server/   app.js (Express: /api/health, /api/intent, static), llm-adapter.js, sc
 src/      index.html, styles.css, app.js (UI state), components.js (views), persistence.js
 src/engine/  model, validate, scheduler, shocks, diff, reasons, session, parser, agent
 src/data/scenarios.js   seeded fixtures (deep-frozen)
-tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/
+tests/    unit, integration, scenario stories, phrasing corpus, LLM adapter (offline), randomized audit, smoke/ (18 browser checks)
 docs/     ARCHITECTURE, DEMO_SCRIPT, DEVPOST_SUBMISSION, TEST_REPORT, PRODUCT_FEEDBACK, FRICTION_LOG, COMPETITION_CHECKLIST
 ```
 

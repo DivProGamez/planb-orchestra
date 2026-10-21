@@ -1,9 +1,13 @@
 {
-  "date": "2026-10-21T10:40:49.102Z",
+  "date": "2026-10-21T11:26:05.366Z",
   "browser": "chrome.exe",
-  "passed": 17,
+  "passed": 18,
   "failed": 0,
   "results": [
+    {
+      "name": "splash reports real boot steps and leaves within 2.5–3 s",
+      "status": "PASS"
+    },
     {
       "name": "welcome shows three scenario tiles and the simulation label",
       "status": "PASS"
@@ -49,7 +53,7 @@
       "status": "PASS"
     },
     {
-      "name": "1280×720: restored session renders without horizontal page overflow",
+      "name": "1280×720: restored session fits the viewport with no page scroll",
       "status": "PASS"
     },
     {

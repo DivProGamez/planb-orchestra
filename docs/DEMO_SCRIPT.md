@@ -1,26 +1,28 @@
 # Demo script — target 2:45 (must stay under 3:00)
 
-Film the real app. Every number below was produced by the current build (verified with the engine on the exact
-sequence below); if anything differs on recording day, narrate what the screen shows, not this script.
+Film the real app. Every number below was produced by the current build on this exact sequence; if anything
+differs on recording day, narrate what the screen shows, not this script.
 
 ## Before recording
 
 1. `npm start`, open http://localhost:5173 in a 1440×900 (or 1920×1080) window at 100% zoom.
-2. Click **New session** if a previous session is restored, so the gallery shows.
-3. Close notifications. No third-party music; your own voice or silence plus captions.
-4. Optional dry run: `npm test` (80 pass) and `npm run test:smoke` (17 pass).
+2. If a previous session is restored, click **New session** in the app bar so you start on the Home dashboard.
+3. Reload once more right before recording so the splash is captured. Close notifications.
+4. No third-party music; your own voice or silence plus captions.
+5. Optional dry run: `npm test` (80 pass) and `npm run test:smoke` (18 pass).
 
 ## Storyboard
 
 | Time | On screen (real action) | Voiceover |
 |---|---|---|
-| 0:00–0:12 | Gallery → **Dinner for Six** → **Build Feasible Plan**. KPI: ✓ Feasible, 66 checks; finish 6:50 PM; $82 / $100. | "Most assistants make plans. PlanB repairs them when reality changes." |
-| 0:12–0:28 | Point at lanes (Alex, Sam, Leila, hands-free roast), Oven/Stovetop/Car rows, deadline line at 7:00 PM. | "A deterministic engine schedules people, equipment, budget and the deadline — and an independent validator re-checks every plan." |
-| 0:28–1:00 | **Type** "Guests are arriving an hour early and the oven broke." → Enter. Bars animate, dashed outlines show old positions, oven row hatched, deadline 7:00 → 6:00 PM. Open the reply's **Agent steps**: Intent detected → Constraints changed → Scheduling performed → Validation passed (65 checks) → Differences explained → Plan committed r1. | "Two changes in one sentence. The agent shows each step: what it understood, what changed, that it planned, that the plan passed validation, and what moved." |
-| 1:00–1:22 | **Why it changed**: roast → *Pan-sear chicken thighs* and tart → *Fruit & yogurt cups* (badges *Alternative used*, *Equipment down*); *Plate & serve* moved (*Dependency moved*). Click **Before / After**, then **Plan B**. Finish 5:55 PM, $86 / $100. | "Every change has a reason code with evidence — no guessed explanations." |
-| 1:22–1:50 | Chip **Advance clock 40 min** (clock 4:40 PM). Chip **Sam can't help** → started work freezes; Cook rice → Alex (*Person unavailable*). Then **type** "Leila is running 10 minutes late" → 4 tasks change, Prep & marinate → Alex (*Arrives late*), still 5:55 PM. | "Consecutive changes on the same session, in my own words. Finished work stays fixed, and nobody is invented." |
-| 1:50–2:20 | Press **F5** — revisions r0–r3 and the 4:40 PM clock return. Chip **Budget is now $80** → red panel *No feasible plan — nothing was changed*: proven bound "Cheapest valid plan costs $86 ($73 already committed)", two verified options. Click **Apply** on *Skip "Pick up fresh bread"* → $79 / $80, r4. | "The session persists. Impossible requests are rejected with the reason, and only options the planner has verified are offered. Nothing changes until I choose." |
-| 2:20–2:45 | **Undo last change** → back to r3; show Session timeline. Cut to terminal: `npm test` (80 pass) and `npm run test:smoke` (17 pass). End on header badges "Simulated Alexa+ experience · demo" and "Parser: limited local rules (not an LLM)". | "A simulated Alexa+ experience for trustworthy household orchestration — deterministic, validated, and honest about what it can't do." |
+| 0:00–0:06 | Reload: splash with the PlanB mark, progress ring and status lines ending "Ready — 171 baseline checks passed". | "PlanB Orchestra." |
+| 0:06–0:20 | Home dashboard: Dinner for Six selected; live preview timeline; drag the deadline slider or set budget to $40 → preview turns *No feasible baseline*; set it back to $100 → *Feasible baseline, 66 checks*. Click **Build Feasible Plan**. | "Most assistants make plans. PlanB repairs them. Even the preview is the real planner, re-checked on every change." |
+| 0:20–0:30 | Command center: KPIs (✓ Feasible, finish 6:50 PM, $82 / $100), the timeline with lanes for Alex, Sam, Leila, hands-free roast, equipment rows. | "People, equipment, budget and the deadline — validated by an independent checker." |
+| 0:30–1:00 | **Type** in the dock: "Guests are arriving an hour early and the oven broke." → bars animate to new slots, dashed outlines mark old positions, deadline marker slides 7:00 → 6:00 PM, oven row hatched, banner *Plan B ready — r1*. Open the reply's **Agent steps**: Intent detected → Constraints changed → Scheduling performed → Validation passed (65 checks) → Differences explained → Plan committed. | "Two changes in one sentence. The agent shows what it understood, what it changed, that it planned and validated, and what moved." |
+| 1:00–1:20 | **Changes** tab: roast → *Pan-sear chicken thighs*, tart → *Fruit & yogurt cups* (*Alternative used*, *Equipment down*); *Plate & serve* (*Dependency moved*). Click **Before / After**, then **Plan B**. Finish 5:55 PM, $86 / $100. | "Every change carries a reason code and evidence — no guessed explanations." |
+| 1:20–1:48 | Chip **Advance clock 40 min** (clock 4:40 PM). Chip **Sam can't help** → banner r2; Cook rice → Alex (*Person unavailable*). Then **type** "Leila is running 10 minutes late" → r3, Prep & marinate → Alex (*Arrives late*), still 5:55 PM. | "Consecutive changes in my own words. Started work stays fixed; nobody is invented." |
+| 1:48–2:18 | Press **F5** — splash, then the same session (r3, 4:40 PM). Chip **Budget is now $80** → red crisis panel *No feasible plan — nothing was changed*: proven bound "Cheapest valid plan costs $86 ($73 already committed)", two verified options. **Apply** *Skip "Pick up fresh bread"* → $79 / $80, r4. | "The session persists. Impossible requests are rejected with the reason, and only verified options are offered — nothing changes until I choose." |
+| 2:18–2:45 | **Undo** in the app bar → r3; open the **History** tab. Cut to terminal: `npm test` (80 pass), `npm run test:smoke` (18 pass). End on the app bar badges "Simulated Alexa+ experience · demo" and "Parser: limited local rules (not an LLM)". | "A simulated Alexa+ experience for trustworthy household orchestration — deterministic, validated, and honest about what it can't do." |
 
 ## Other phrasings that work with the local parser
 
@@ -31,4 +33,4 @@ Birthday: "The aunt is running 30 minutes late" · "The babysitter cancelled". O
 "My partner got called into work".
 
 Unsupported phrasing gets "I couldn't map that to a supported change" — do not present the local parser as AI. Only
-mention the LLM path if `LLM_API_KEY` is configured, the header badge says "Parser: LLM", and you have watched it work.
+mention the LLM path if `LLM_API_KEY` is configured, the app bar badge says "Parser: LLM", and you have watched it work.

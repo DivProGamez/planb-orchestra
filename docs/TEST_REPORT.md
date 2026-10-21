@@ -1,6 +1,6 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T10:40Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T11:25Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
 ## `npm test` (node:test)
 
@@ -17,6 +17,7 @@ scenario stories (all three), persistence, integration + server, offline LLM ada
 ## `npm run test:smoke` (playwright-core driving installed Chrome)
 
 ```
+PASS  splash reports real boot steps and leaves within 2.5–3 s
 PASS  welcome shows three scenario tiles and the simulation label
 PASS  setup form builds a validated baseline plan
 PASS  first shock (early guests + broken oven) replans with reasons and animation data
@@ -28,13 +29,13 @@ PASS  structured change form uses the same engine path
 PASS  unsupported phrasing fails visibly without changing the plan
 PASS  free-form requests: equipment breaks, then works again (original version restored)
 PASS  keyboard: Escape dismisses the infeasible panel
-PASS  1280×720: restored session renders without horizontal page overflow
+PASS  1280×720: restored session fits the viewport with no page scroll
 PASS  1024×768 tablet: stacked layout without horizontal page overflow
 PASS  other scenarios build feasible baselines
 PASS  API outage does not blank the app (falls back to local parser)
 PASS  phone 390×844 and tablet 768×1024: landing and setup fit without horizontal scroll
 PASS  no console errors during the run
-Smoke: 17 passed, 0 failed. Screenshots in evidence/
+Smoke: 18 passed, 0 failed. Screenshots in evidence/
 ```
 
 Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.
