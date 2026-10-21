@@ -340,7 +340,7 @@ try {
       const body = document.querySelector('.preview-body');
       const card = document.querySelector('.preview').getBoundingClientRect();
       const tl = document.querySelector('#tl-preview').getBoundingClientRect();
-      const ax = [...document.querySelectorAll('#tl-preview .tl-axis span')].map((e) => e.getBoundingClientRect());
+      const ax = [...document.querySelectorAll('#tl-preview .tl-axis .at')].map((e) => e.getBoundingClientRect());
       const hero = document.querySelector('.hero').getBoundingClientRect();
       const btn = document.querySelector('.hero-actions .btn').getBoundingClientRect();
       return {

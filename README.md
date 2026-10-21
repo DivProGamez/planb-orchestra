@@ -33,8 +33,15 @@ npm test
 npm run test:smoke
 ```
 
+```bash
+npm run audit:screens
+```
+
 `npm run test:smoke` drives the real UI in an installed Chrome or Edge (`CHROME_PATH` overrides detection) and
-writes screenshots to `evidence/`. `node scripts/check-fixtures.mjs` prints each scenario's demo story through the
+writes screenshots to `evidence/`. `npm run audit:screens` walks all three scenarios through build → review → confirm →
+every screen → undo → reload at 1920×1080, fails on layout problems (page scroll, marker or ghost labels over bars, rows
+cut at the chart edge, controls outside their card, console errors) and saves 31 screenshots to `evidence/populated/`.
+`node scripts/check-fixtures.mjs` prints each scenario's demo story through the
 real engine.
 
 ## Interface

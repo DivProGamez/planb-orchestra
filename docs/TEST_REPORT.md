@@ -1,6 +1,6 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T15:14Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T15:55Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
 ## `npm test` (node:test)
 
@@ -47,6 +47,15 @@ Smoke: 26 passed, 0 failed. Screenshots in evidence/
 ```
 
 Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.
+
+## `npm run audit:screens` (populated screens, 1920×1080)
+
+All three scenarios: build → assistant review (plan unchanged until confirmed) → confirm → workspace, inspector,
+assistant, repair (six completed stages), before/after, history → undo → reload (undo persisted), plus settings.
+
+```
+Populated audit: 31 screenshots in evidence/populated/, 0 problem(s)
+```
 
 ## Not tested
 

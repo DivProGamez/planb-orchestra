@@ -60,6 +60,7 @@ const ui = {
   rowH: null,
   previewRowH: null,
   compareRowH: null,
+  historyRowH: null,
   notice: '',
   draft: '',
   prefs: loadPrefs(),
@@ -376,10 +377,10 @@ function render() {
  */
 function fitCharts() {
   let changed = false;
-  const fit = (selector, key, plans, state, compact, extra = 0, minRow) => {
+  const fit = (selector, key, plans, state, compact, extra = 0, minRow, maxRow) => {
     const el = root.querySelector(selector);
     if (!el || !state) return;
-    const rowH = fitRowHeight({ state, plans, availablePx: el.clientHeight - 6 - extra, compact, minRow });
+    const rowH = fitRowHeight({ state, plans, availablePx: el.clientHeight - 6 - extra, compact, minRow, maxRow });
     if (rowH !== ui[key]) { ui[key] = rowH; changed = true; }
   };
   if (ui.session) {
@@ -389,6 +390,10 @@ function fitCharts() {
     if (ui.view === 'compare' && ui.session.revisions.length > 1) {
       const block = root.querySelector('.dual-block');
       if (block) fit('.dual-block', 'compareRowH', [head.plan, prev?.plan], head.state, false, (block.querySelector('.dual-label')?.offsetHeight || 0) + 8, 34);
+    }
+    if (ui.view === 'history') {
+      const R = ui.session.revisions[Math.min(ui.historyIndex ?? ui.session.revisions.length - 1, ui.session.revisions.length - 1)];
+      fit('.snap-tl', 'historyRowH', [R.plan], R.state, true, 0, 30, 92);
     }
   }
   if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true);
@@ -575,7 +580,7 @@ document.addEventListener('keydown', (ev) => {
 let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { ui.rowH = null; ui.previewRowH = null; ui.compareRowH = null; if (!document.getElementById('splash')) render(); }, 150);
+  resizeTimer = setTimeout(() => { ui.rowH = null; ui.previewRowH = null; ui.compareRowH = null; ui.historyRowH = null; if (!document.getElementById('splash')) render(); }, 150);
 });
 
 window.addEventListener('error', (e) => {

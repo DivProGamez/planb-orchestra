@@ -506,7 +506,7 @@ function renderAssistant(ctx) {
   return `
   <div class="assistant">
     <div class="as-head">
-      <div class="orb orb-${esc(ui.status)}" aria-hidden="true"><span></span></div>
+      <div class="orb orb-${esc(ui.status)}" aria-hidden="true"><span>${logoSvg(24, 'orb')}</span></div>
       <div><div class="as-title">PlanB assistant</div><div class="as-status" role="status" aria-live="polite">${esc(STATUS_LABEL[ui.status] || ui.status)}</div></div>
     </div>
     <ol class="conversation" aria-live="polite" aria-relevant="additions">${intro}${msgs}${pending}</ol>
@@ -531,7 +531,12 @@ function renderInspector(ctx) {
   const task = s.tasks.find((t) => t.id === ui.selectedTaskId);
   if (!task) {
     const quick = ctx.scenario.quickCommands.filter((q) => !/^(undo|advance|can we|are we|will we)/i.test(q.text) && !/\?$/.test(q.text));
-    return `<div class="empty">${icon('search', 30)}<p>Select a task on the timeline to inspect it.</p><p class="muted small">Read-only: what the planner decided, and why.</p></div>
+    const changedList = head.diff?.changed.length ? `
+      <div class="ins-changes"><div class="kpi-label">Changed in ${esc(head.id)} · ${head.diff.changed.length} of ${head.diff.entries.length} tasks</div>
+        <ul class="ins-change-list">${head.diff.changed.map((e) => `<li><button class="ins-chg" data-action="select-task" data-task="${esc(e.taskId)}">
+          <span class="ins-ch-title">${esc(e.title)}</span><span class="kind ${KIND_CLASS[e.kind]}">${esc(e.kind)}${e.deltaMinutes ? ` ${esc(formatSigned(e.deltaMinutes))}` : ''}</span></button></li>`).join('')}</ul></div>` : '';
+    return `<div class="empty ${changedList ? 'empty-tight' : ''}">${icon('search', 30)}<p>Select a task on the timeline to inspect it.</p><p class="muted small">Read-only: what the planner decided, and why.</p></div>
+      ${changedList}
       <div class="ins-quick"><div class="kpi-label">Simulate a change</div>
         <div class="chips">${quick.map((q) => `<button class="chip" data-action="quick-review" data-text="${esc(q.text)}">${icon('bolt', 12)} ${esc(q.label)}</button>`).join('')}</div></div>`;
   }
@@ -578,31 +583,88 @@ const STAGES = [
   { step: 'Plan committed', title: 'Commit', icon: 'check', alt: ['Nothing committed'] },
 ];
 
+/** Headline figure for a stage, read from the numbers the agent wrote into that trace step. */
+const plural = (n, word) => `${word}${n === '1' ? '' : 's'}`;
+const STAGE_METRIC = {
+  'Intent detected': (d) => { const n = String((d.split(' — ')[1] || '').split(' + ').filter(Boolean).length); return n !== '0' ? [n, `${plural(n, 'change')} understood`] : null; },
+  'Option confirmed by you': () => ['1', 'option chosen by you'],
+  'Constraints changed': (d) => { const n = String(d.split(' — ')[0].split('; ').filter(Boolean).length); const f = d.match(/(\d+) started\/done/); return [n, `${plural(n, 'constraint')} updated${f ? ` · ${f[1]} frozen` : ''}`]; },
+  'Constraints checked': () => ['0', 'changes accepted'],
+  'Scheduling performed': (d) => { const m = d.match(/^([\d,]+) configuration/); const ms = d.match(/in ([\d.]+) ms/); return m ? [m[1], `${plural(m[1], 'configuration')} · ${ms ? ms[1] : '?'} ms`] : null; },
+  'Validation passed': (d) => { const m = d.match(/(\d+) independent checks, (\d+) violations/); return m ? [m[1], `checks · ${m[2]} violations`] : null; },
+  'Validation failed': (d) => { const n = String(d.split(', ').filter(Boolean).length); return [n, `${plural(n, 'violation')} found`]; },
+  'Differences explained': (d) => { const m = d.match(/^(\d+) changed/); const u = d.match(/(\d+) unchanged/); return m ? [m[1], `changed · ${u ? u[1] : 0} unchanged`] : null; },
+  'Options verified': (d) => { const m = d.match(/^(\d+) option/); const n = m ? m[1] : '0'; return [n, `verified ${plural(n, 'option')}`]; },
+  'Plan committed': (d) => { const m = d.match(/Revision (r\d+)/); return m ? [m[1], 'saved · undo available'] : null; },
+  'Nothing committed': (d) => { const m = d.match(/at (r\d+)/); return m ? [m[1], 'kept until you choose'] : null; },
+};
+
+/** Before/after position of one task on a shared axis (dashed = before, solid = after). */
+function mapTrack(e, axis) {
+  const bx = (st) => `left:${((st.startMin - axis.start) / axis.span) * 100}%;width:${((st.endMin - st.startMin) / axis.span) * 100}%`;
+  return `<div class="map-track" aria-hidden="true">
+        ${e.before ? `<span class="mt-bar mt-before" style="${bx(e.before)}"></span>` : ''}
+        ${e.after ? `<span class="mt-bar mt-after ${KIND_CLASS[e.kind]}" style="${bx(e.after)}"></span>` : ''}
+      </div>`;
+}
+
 export function renderRepair(ctx) {
   const { session, head, ui } = ctx;
   const s = head.state.scenario;
+  const clock = (m) => formatClock(s, m);
   const msgs = session.conversation.filter((m) => m.role === 'assistant' && m.trace?.some((t) => t.step === 'Constraints changed' || t.step === 'Constraints checked' || t.step === 'Option confirmed by you'));
   const last = msgs[msgs.length - 1];
   const userMsg = last ? session.conversation[session.conversation.lastIndexOf(last) - 1] : null;
+  const committed = Boolean(last?.trace.some((t) => t.step === 'Plan committed'));
   const find = (stage) => last?.trace.find((t) => t.step === stage.step || (stage.alt || []).includes(t.step) || (stage.step === 'Intent detected' && t.step === 'Option confirmed by you'));
+  const found = STAGES.map(find);
   const cards = STAGES.map((stage, i) => {
-    const t = find(stage);
+    const t = found[i];
     const status = !t ? 'idle' : t.status === 'ok' ? 'ok' : t.status === 'skipped' ? 'skipped' : t.status === 'warn' ? 'warn' : 'fail';
     const label = { ok: 'Complete', warn: 'Attention', fail: 'Failed', skipped: 'Skipped', idle: 'Not reached' }[status];
+    const metric = t ? STAGE_METRIC[t.step]?.(t.detail) : null;
     return `
     <li class="stage stage-${status}" style="--i:${i}">
-      <div class="stage-top"><span class="tag mono">Stage ${String(i + 1).padStart(2, '0')}</span><span class="stage-status">${status === 'ok' ? icon('check', 13) : status === 'fail' ? icon('x', 13) : status === 'warn' ? icon('alert', 13) : ''} ${label}</span></div>
+      <div class="stage-top"><span class="stage-node" aria-hidden="true">${status === 'ok' ? icon('check', 12) : status === 'fail' ? icon('x', 12) : status === 'warn' ? icon('alert', 12) : String(i + 1)}</span><span class="stage-no mono">Stage ${String(i + 1).padStart(2, '0')}</span><span class="stage-status">${label}</span></div>
       <div class="stage-title">${icon(stage.icon, 18)}<strong>${esc(t?.step === 'Option confirmed by you' ? 'Option confirmed' : t?.step && t.step !== stage.step ? t.step : stage.title)}</strong></div>
-      <p class="stage-detail">${t ? esc(t.detail) : '—'}</p>
+      ${metric ? `<div class="stage-metric"><strong class="mono">${esc(metric[0])}</strong><span>${esc(metric[1])}</span></div>` : ''}
+      <p class="stage-detail" title="${t ? esc(t.detail) : ''}">${t ? esc(t.detail) : '—'}</p>
     </li>`;
   }).join('');
-  const changes = head.diff && last?.trace.some((t) => t.step === 'Plan committed') ? head.diff.changed.map((e, i) => `
-    <li class="ledger-row" data-action="select-task" data-task="${esc(e.taskId)}">
-      <span class="tag mono">T-${String(i + 1).padStart(2, '0')}</span>
-      <div class="lr-main"><strong>${e.kind === 'Replaced' ? `${esc(e.beforeTitle)} → ` : ''}${esc(e.title)}</strong>
-        <span class="muted small">${e.before && e.after ? `${esc(formatWindow(s, e.before.startMin, e.before.endMin))} → ${esc(formatWindow(s, e.after.startMin, e.after.endMin))}` : e.before ? 'removed from the plan' : 'added back'}${e.before && e.after && e.before.personId !== e.after.personId ? ` · ${esc(personName(s, e.before.personId))} → ${esc(personName(s, e.after.personId))}` : ''}</span></div>
-      <span class="kind ${KIND_CLASS[e.kind]}">${esc(e.kind)}</span>
+  const done = found.filter((t) => t && t.status === 'ok').length;
+
+  const prev = head.index > 0 ? session.revisions[head.index - 1] : null;
+  const axis = prev ? { start: s.startMin, end: Math.max(s.deadlineMin, prev.state.scenario.deadlineMin, head.plan.endMin, prev.plan.endMin) } : null;
+  if (axis) axis.span = Math.max(1, axis.end - axis.start);
+  const changes = head.diff && committed ? head.diff.changed.map((e, i) => `
+    <li class="ledger-row ${ui.selectedTaskId === e.taskId ? 'is-selected' : ''}" data-action="select-task" data-task="${esc(e.taskId)}">
+      <div class="lr-top">
+        <span class="tag mono">T-${String(i + 1).padStart(2, '0')}</span>
+        <strong class="lr-title">${e.kind === 'Replaced' ? `<span class="was">${esc(e.beforeTitle)}</span> → ` : ''}${esc(e.title)}</strong>
+        <span class="kind ${KIND_CLASS[e.kind]}">${esc(e.kind)}${e.deltaMinutes ? ` ${esc(formatSigned(e.deltaMinutes))}` : ''}</span>
+      </div>
+      ${axis ? mapTrack(e, axis) : ''}
+      <div class="lr-facts small">
+        <span>${e.before ? esc(formatWindow(s, e.before.startMin, e.before.endMin)) : '—'} ${icon('arrow', 11)} <strong>${e.after ? esc(formatWindow(s, e.after.startMin, e.after.endMin)) : 'removed'}</strong></span>
+        ${e.before && e.after && e.before.personId !== e.after.personId ? `<span>${esc(personName(s, e.before.personId))} ${icon('arrow', 11)} <strong>${esc(personName(s, e.after.personId))}</strong></span>` : ''}
+      </div>
+      ${e.reasons.length ? `<ul class="reasons">${reasonBadges(e.reasons)}</ul>` : ''}
     </li>`).join('') : '';
+
+  const row = (label, a, b, d) => `<div class="oc-row"><span class="kpi-label">${esc(label)}</span><span class="oc-val"><span class="was">${a}</span>${icon('arrow', 13)}<strong>${b}</strong>${d}</span></div>`;
+  const outcome = prev && committed ? `
+    <section class="card outcome" aria-labelledby="oc-title">
+      <div class="card-head"><h2 id="oc-title">${icon('shield', 16)} Outcome</h2><span class="muted small">${esc(prev.id)} → ${esc(head.id)} · re-validated</span></div>
+      <div class="oc-grid">
+        ${row('Finish', esc(clock(prev.plan.endMin)), esc(clock(head.plan.endMin)), delta(head.plan.endMin - prev.plan.endMin, 'min', true))}
+        ${row('Deadline', esc(clock(prev.state.scenario.deadlineMin)), esc(clock(s.deadlineMin)), delta(s.deadlineMin - prev.state.scenario.deadlineMin, 'min'))}
+        ${row('Slack', esc(formatDuration(prev.plan.slackMin)), esc(formatDuration(head.plan.slackMin)), delta(head.plan.slackMin - prev.plan.slackMin, 'min'))}
+        ${row('Cost', `$${prev.plan.totalCost}`, `$${head.plan.totalCost}`, delta(head.plan.totalCost - prev.plan.totalCost, '$', true))}
+        ${row('Validator', `${prev.plan.validation.checks}`, `${head.plan.validation.checks} checks`, '<span class="tag tag-ok">0 violations</span>')}
+        ${row('Scheduled', `${prev.plan.scheduled.length}`, `${head.plan.scheduled.length} tasks`, `<span class="muted small">${head.diff ? head.diff.changed.length : 0} changed</span>`)}
+      </div>
+    </section>` : '';
+
   const log = session.activity.slice(-6).reverse().map((t) => `
     <li><div class="act-in">“${esc(t.input)}” <span class="muted small">${esc(t.source)}</span></div>
       <ol class="steps">${t.steps.map((st) => `<li class="step step-${esc(st.status)}"><code>${esc(st.tool)}</code> <span>${esc(st.detail)}</span>${st.ms ? ` <span class="muted small">${st.ms} ms</span>` : ''}</li>`).join('')}</ol></li>`).join('');
@@ -615,19 +677,24 @@ export function renderRepair(ctx) {
     actions: `<button class="btn btn-danger" data-action="open-disruption">${icon('bolt', 16)}<span>Simulate disruption</span></button>`,
   })}
     ${ui.proposal ? renderCrisis(ui.proposal, s) : ''}
-    <section class="card pipeline" aria-labelledby="pl-title">
-      <div class="card-head"><h2 id="pl-title">${icon('layers', 16)} Pipeline stages</h2><span class="muted small">Recorded by the agent for the latest request — real values, not a replay</span></div>
+    <section class="card pipeline ${last ? '' : 'is-idle'}" aria-labelledby="pl-title">
+      <div class="card-head"><h2 id="pl-title">${icon('layers', 16)} Pipeline stages</h2>
+        <span class="pl-progress small">${last ? `<strong class="mono">${done}/${STAGES.length}</strong> stages complete · ` : ''}<span class="muted">recorded by the agent for the latest request — real values, not a replay</span></span></div>
+      <div class="pl-rail" aria-hidden="true"><span style="width:${(done / STAGES.length) * 100}%"></span></div>
       <ol class="stages">${cards}</ol>
     </section>
     <div class="repair-grid">
-      <section class="card" aria-labelledby="ledger-title">
-        <div class="card-head"><h2 id="ledger-title">${icon('list', 16)} Committed changes</h2>${head.diff ? `<span class="muted small">${esc(head.id)} · ${head.diff.changed.length} changed</span>` : ''}</div>
+      <section class="card ledger-card" aria-labelledby="ledger-title">
+        <div class="card-head"><h2 id="ledger-title">${icon('list', 16)} Committed changes</h2>${head.diff && committed ? `<span class="muted small">${esc(head.id)} · ${head.diff.changed.length} changed · ${head.diff.entries.length - head.diff.changed.length} unchanged</span>` : ''}</div>
         ${changes ? `<ol class="ledger">${changes}</ol><button class="btn btn-sm" data-action="nav" data-view="compare">${icon('compare', 14)}<span>Open the before / after comparison</span></button>` : '<div class="empty small">No committed change for the latest request.</div>'}
       </section>
-      <section class="card" aria-labelledby="log-title">
-        <div class="card-head"><h2 id="log-title">${icon('workspace', 16)} Agent tool log</h2><span class="muted small">Raw tool calls with timings</span></div>
-        <div class="scroll">${log ? `<ol class="act-list">${log}</ol>` : '<div class="empty small">No tool calls yet.</div>'}</div>
-      </section>
+      <div class="repair-side">
+        ${outcome}
+        <section class="card log-card" aria-labelledby="log-title">
+          <div class="card-head"><h2 id="log-title">${icon('workspace', 16)} Agent tool log</h2><span class="muted small">Raw tool calls with timings</span></div>
+          <div class="scroll">${log ? `<ol class="act-list">${log}</ol>` : '<div class="empty small">No tool calls yet.</div>'}</div>
+        </section>
+      </div>
     </div>
   </div>`;
 }
@@ -675,7 +742,6 @@ export function renderCompare(ctx) {
   const kindCounts = Object.entries(changedEntries.reduce((acc, e) => ({ ...acc, [e.kind]: (acc[e.kind] || 0) + 1 }), {}))
     .map(([k, n]) => `<span class="kind ${KIND_CLASS[k]}">${n} ${esc(k)}</span>`).join(' ');
   const rows = changedEntries.map((e, i) => {
-    const bx = (st) => (st ? `left:${((st.startMin - axis.start) / axis.span) * 100}%;width:${((st.endMin - st.startMin) / axis.span) * 100}%` : '');
     return `
     <li class="map-row ${ui.selectedTaskId === e.taskId ? 'is-selected' : ''}">
       <button class="map-head" data-action="select-task" data-task="${esc(e.taskId)}">
@@ -683,10 +749,7 @@ export function renderCompare(ctx) {
         <span class="map-title">${e.kind === 'Replaced' ? `<span class="was">${esc(e.beforeTitle)}</span> → ` : ''}${esc(e.title)}</span>
         <span class="kind ${KIND_CLASS[e.kind]}">${esc(e.kind)}${e.deltaMinutes ? ` ${esc(formatSigned(e.deltaMinutes))}` : ''}</span>
       </button>
-      <div class="map-track" aria-hidden="true">
-        ${e.before ? `<span class="mt-bar mt-before" style="${bx(e.before)}"></span>` : ''}
-        ${e.after ? `<span class="mt-bar mt-after ${KIND_CLASS[e.kind]}" style="${bx(e.after)}"></span>` : ''}
-      </div>
+      ${mapTrack(e, axis)}
       <div class="map-facts small">
         <span>${e.before ? esc(formatWindow(s, e.before.startMin, e.before.endMin)) : '—'} ${icon('arrow', 11)} <strong>${e.after ? esc(formatWindow(s, e.after.startMin, e.after.endMin)) : 'removed'}</strong></span>
         ${e.before && e.after && e.before.personId !== e.after.personId ? `<span>${esc(personName(s, e.before.personId))} ${icon('arrow', 11)} <strong>${esc(personName(s, e.after.personId))}</strong></span>` : ''}
@@ -780,7 +843,7 @@ export function renderHistory(ctx) {
           ${kpiCard({ label: 'Cost', iconName: 'money', value: `$${R.plan.totalCost} ${P ? delta(R.plan.totalCost - P.plan.totalCost, '$', true) : ''}`, sub: `budget $${s.budgetCap}` })}
           ${kpiCard({ label: 'Changed tasks', iconName: 'layers', value: R.diff ? String(R.diff.changed.length) : '—', sub: R.diff ? `${R.diff.entries.length - R.diff.changed.length} unchanged` : 'original plan' })}
         </div>
-        <div class="snap-tl">${renderTimeline({ state: R.state, plan: R.plan, axis, nowMin: R.atMin, compact: true, id: 'tl-snapshot', label: `Snapshot ${R.id}` })}</div>
+        <div class="snap-tl">${renderTimeline({ state: R.state, plan: R.plan, axis, nowMin: R.atMin, compact: true, rowH: ui.historyRowH, id: 'tl-snapshot', label: `Snapshot ${R.id}` })}</div>
         <div class="scroll">${diffRows ? `<table class="diff-table"><thead><tr><th>Task</th><th>Owner</th><th>${esc(P.id)}</th><th>${esc(R.id)}</th><th>Change</th></tr></thead><tbody>${diffRows}</tbody></table>` : '<div class="empty small">The baseline has no changes to list.</div>'}</div>
       </section>
     </div>

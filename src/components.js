@@ -104,6 +104,8 @@ const SIZES = {
   full: { row: 58, bar: 42, res: 30, label: 176 },
   compact: { row: 38, bar: 28, res: 22, label: 104 },
 };
+/** Height of the time axis plus the marker-label strip under it. */
+const AXIS_H = 54;
 
 function packHandsFree(entries) {
   // Interval partitioning for tasks that need no person (they may overlap).
@@ -131,12 +133,14 @@ export function buildLayout(state, plans, size = SIZES.full) {
 }
 
 /** Row height that makes a chart fill `availablePx` (bounded so bars stay readable). */
-export function fitRowHeight({ state, plans, availablePx, compact, minRow }) {
+export function fitRowHeight({ state, plans, availablePx, compact, minRow, maxRow }) {
   const base = compact ? SIZES.compact : SIZES.full;
   const lanes = buildLayout(state, plans, base).lanes.reduce((n, l) => n + l.rows, 0);
-  const fixed = 34 + state.scenario.resources.length * base.res + 6;
-  const fitted = Math.floor((availablePx - fixed) / Math.max(1, lanes));
-  return Math.max(minRow ?? base.row, Math.min(compact ? 66 : 104, fitted));
+  // Equipment rows shrink to 20 px when person rows are short (same rule as renderTimeline).
+  const fit = (res) => Math.floor((availablePx - AXIS_H - state.scenario.resources.length * res - 6) / Math.max(1, lanes));
+  let fitted = fit(base.res);
+  if (fitted < 44) fitted = Math.min(43, fit(20));
+  return Math.max(minRow ?? base.row, Math.min(maxRow ?? (compact ? 66 : 132), fitted));
 }
 
 function pct(axis, m) {
@@ -176,7 +180,7 @@ export function renderTimeline(opts) {
     : base;
   const layout = buildLayout(state, [plan, prevPlan], size);
   // Compact charts sit in narrow cards: hourly labels so neighbouring times never collide.
-  const step = axis.span > (opts.compact ? 150 : 330) ? 60 : 30;
+  const step = axis.span > (opts.compact ? 150 : 280) ? 60 : 30;
   const ticks = [];
   for (let m = axis.start; m <= axis.end; m += step) ticks.push(m);
 
@@ -245,23 +249,31 @@ export function renderTimeline(opts) {
       const prev = prevById.get(taskId);
       if (!prev) return '';
       const box = barBox(layout, axis, prev, 1);
-      return `<div class="ghost ${KIND_CLASS[e.kind]}" style="left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px" aria-hidden="true"><span>${e.kind === 'Removed' ? 'removed' : 'was'} · ${esc(prev.title)}</span></div>`;
+      // A label half-hidden under a current bar reads as noise: keep only the outline there.
+      const covered = plan.scheduled.some((st) => { const b = barBox(layout, axis, st, 0); return b.top === box.top && b.left < box.left + box.width && box.left < b.left + b.width; });
+      return `<div class="ghost ${KIND_CLASS[e.kind]}" style="left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px" aria-hidden="true">${covered ? '' : `<span>${e.kind === 'Removed' ? 'removed' : 'was'} · ${esc(prev.title)}</span>`}</div>`;
     }).join('') : '';
 
+  // Marker lines run through the chart; their labels sit in a strip under the time axis so they never cover bars.
   const prevDeadlineMin = opts.prevState && opts.prevState.scenario.deadlineMin !== s.deadlineMin ? opts.prevState.scenario.deadlineMin : null;
-  const deadline = `<div class="marker marker-deadline ${pct(axis, s.deadlineMin) > 78 ? 'flip' : ''}" style="left:${pct(axis, s.deadlineMin)}%"
-      ${animate && prevDeadlineMin !== null ? `data-from-left="${pct(axis, prevDeadlineMin)}"` : ''}><span>${icon('flag', 11)} ${esc(s.deadlineLabel || 'deadline')} ${esc(clock(s.deadlineMin))}</span></div>`;
-  const prevDeadline = prevDeadlineMin !== null && !opts.compact
-    ? `<div class="marker marker-old" style="left:${pct(axis, prevDeadlineMin)}%"><span>was ${esc(clock(prevDeadlineMin))}</span></div>` : '';
-  const now = nowMin > axis.start && nowMin < axis.end
-    ? `<div class="marker marker-now" style="left:${pct(axis, nowMin)}%"><span>${esc(clock(nowMin))} now</span></div>` : '';
+  const showNow = nowMin > axis.start && nowMin < axis.end;
+  const anchor = (m) => (pct(axis, m) > 82 ? 'am-end' : pct(axis, m) < 12 ? 'am-start' : '');
+  const deadline = `<div class="marker marker-deadline" style="left:${pct(axis, s.deadlineMin)}%"
+      ${animate && prevDeadlineMin !== null ? `data-from-left="${pct(axis, prevDeadlineMin)}"` : ''}></div>`;
+  const prevDeadline = prevDeadlineMin !== null ? `<div class="marker marker-old" style="left:${pct(axis, prevDeadlineMin)}%"></div>` : '';
+  const now = showNow ? `<div class="marker marker-now" style="left:${pct(axis, nowMin)}%"></div>` : '';
+  const marks = [
+    prevDeadlineMin !== null && !opts.compact ? `<span class="am am-old ${anchor(prevDeadlineMin)}" style="left:${pct(axis, prevDeadlineMin)}%">was ${esc(clock(prevDeadlineMin))}</span>` : '',
+    showNow && nowMin > axis.start ? `<span class="am am-now ${anchor(nowMin)}" style="left:${pct(axis, nowMin)}%">${esc(clock(nowMin))} now</span>` : '',
+    `<span class="am am-deadline ${anchor(s.deadlineMin)}" style="left:${pct(axis, s.deadlineMin)}%" ${animate && prevDeadlineMin !== null ? `data-from-left="${pct(axis, prevDeadlineMin)}"` : ''}>${icon('flag', 11)} ${esc(s.deadlineLabel || 'deadline')} ${esc(clock(s.deadlineMin))}</span>`,
+  ].join('');
 
   return `
   <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px">
     <div class="tl-grid">
-      <div class="tl-labels" style="height:${layout.height + 34}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
+      <div class="tl-labels" style="height:${layout.height + AXIS_H}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
       <div class="tl-main">
-        <div class="tl-axis">${ticks.map((m) => `<span ${m === axis.end ? 'class="axis-end" ' : ''}style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}</div>
+        <div class="tl-axis">${ticks.map((m) => `<span class="at ${m === axis.end ? 'axis-end' : ''}" style="left:${pct(axis, m)}%">${esc(clock(m))}</span>`).join('')}<div class="axis-marks">${marks}</div></div>
         <div class="tl-body" style="height:${layout.height}px">
           ${ticks.map((m) => `<div class="tick" style="left:${pct(axis, m)}%"></div>`).join('')}
           ${shades}${resRows}${ghostHtml}${bars}${prevDeadline}${deadline}${now}
