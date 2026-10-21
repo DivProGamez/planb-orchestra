@@ -83,14 +83,15 @@ const birthday = {
     task({ id: 'cake', title: 'Pick up bakery cake', durationMin: 30, minDurationMin: 30, cost: 40, priority: 'must', compressible: false, eligiblePeople: ['parent', 'helper'], resources: ['car'], alternatives: ['cake-home'], keywords: ['cake'] }),
     task({ id: 'decor', title: 'Buy decorations & balloons', durationMin: 40, minDurationMin: 30, cost: 30, priority: 'should', eligiblePeople: ['parent', 'helper'], resources: ['car'], alternatives: ['decor-diy'], keywords: ['decorations', 'balloons', 'decor'] }),
     task({ id: 'snacks', title: 'Prepare snacks & juice', durationMin: 35, minDurationMin: 25, cost: 25, priority: 'must', eligiblePeople: ['helper', 'aunt', 'parent'], keywords: ['snacks', 'juice'] }),
-    task({ id: 'pizza', title: 'Bake mini pizzas', durationMin: 30, minDurationMin: 25, cost: 15, priority: 'should', eligiblePeople: ['helper', 'parent', 'aunt'], resources: ['oven'], keywords: ['pizza', 'pizzas'] }),
+    task({ id: 'pizza', title: 'Bake mini pizzas', durationMin: 30, minDurationMin: 25, cost: 15, priority: 'should', eligiblePeople: ['helper', 'parent', 'aunt'], resources: ['oven'], alternatives: ['pizza-delivery'], keywords: ['pizza', 'pizzas'] }),
     task({ id: 'games', title: 'Set up party games', durationMin: 30, minDurationMin: 20, cost: 10, priority: 'optional', value: 5, eligiblePeople: ['aunt', 'helper', 'parent'], keywords: ['games'] }),
     task({ id: 'bags', title: 'Pack goody bags', durationMin: 25, minDurationMin: 20, cost: 20, priority: 'optional', value: 3, eligiblePeople: ['aunt', 'parent', 'helper'], keywords: ['goody bags', 'goody', 'bags'] }),
     task({ id: 'setup', title: 'Decorate the living room', durationMin: 45, minDurationMin: 35, cost: 0, priority: 'should', eligiblePeople: ['parent', 'helper', 'aunt'], dependsOn: ['decor'], keywords: ['living room', 'decorate'] }),
-    task({ id: 'final', title: 'Final party check', durationMin: 15, minDurationMin: 10, cost: 0, priority: 'must', eligiblePeople: ['parent', 'aunt'], dependsOn: ['cake', 'snacks', 'pizza', 'setup'], softDependsOn: ['games', 'bags'], keywords: ['final check', 'walkthrough'] }),
+    task({ id: 'final', title: 'Final party check', durationMin: 15, minDurationMin: 10, cost: 0, priority: 'must', eligiblePeople: ['parent', 'aunt'], dependsOn: ['cake', 'snacks'], softDependsOn: ['pizza', 'setup', 'games', 'bags'], keywords: ['final check', 'walkthrough'] }),
   ],
   alternatives: [
     { id: 'cake-home', forTask: 'cake', title: 'Bake a sponge cake at home', durationMin: 70, minDurationMin: 60, cost: 14, compressible: true, eligiblePeople: ['parent', 'aunt', 'helper'], resources: ['oven'] },
+    { id: 'pizza-delivery', forTask: 'pizza', title: 'Order pizza delivery', durationMin: 15, minDurationMin: 15, cost: 32, compressible: false, eligiblePeople: ['parent', 'helper', 'aunt'], resources: [] },
     { id: 'decor-diy', forTask: 'decor', title: 'Make paper decorations', durationMin: 50, minDurationMin: 40, cost: 8, compressible: true, eligiblePeople: ['aunt', 'helper', 'parent'], resources: [] },
   ],
   quickCommands: [

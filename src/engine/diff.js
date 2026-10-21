@@ -13,7 +13,10 @@ function constraintChanges(prev, next) {
     deadlineDelta: ns.deadlineMin - ps.deadlineMin,
     budgetDelta: ns.budgetCap - ps.budgetCap,
     peopleLost: ns.people.filter((p) => prevPeople.get(p.id) && p.availableTo < prevPeople.get(p.id).availableTo).map((p) => p.id),
+    peopleDelayed: ns.people.filter((p) => prevPeople.get(p.id) && p.availableFrom > prevPeople.get(p.id).availableFrom).map((p) => p.id),
+    peopleBack: ns.people.filter((p) => prevPeople.get(p.id) && (p.availableTo > prevPeople.get(p.id).availableTo || p.availableFrom < prevPeople.get(p.id).availableFrom)).map((p) => p.id),
     resourcesDown: ns.resources.filter((r) => !r.available && prevRes.get(r.id)?.available).map((r) => r.id),
+    resourcesUp: ns.resources.filter((r) => r.available && prevRes.get(r.id) && !prevRes.get(r.id).available).map((r) => r.id),
     longer: ns.tasks.filter((t) => prevTasks.get(t.id) && t.durationMin > prevTasks.get(t.id).durationMin).map((t) => t.id),
     skipped: ns.tasks.filter((t) => t.status === 'dropped' && prevTasks.get(t.id)?.status !== 'dropped').map((t) => t.id),
   };
@@ -45,11 +48,14 @@ export function diffPlans({ prevState, prevPlan, nextState, nextPlan }) {
   const pressure = [];
   if (ch.deadlineDelta < 0) pressure.push({ code: 'EARLIER_DEADLINE', evidence: `Deadline moved ${clock(prevState.scenario.deadlineMin)} → ${clock(ns.deadlineMin)}` });
   if (ch.peopleLost.length) pressure.push({ code: 'PERSON_UNAVAILABLE', evidence: ch.peopleLost.map((id) => `${personName(ns, id)} unavailable from ${clock(people.get(id).availableTo)}`).join('; ') });
+  if (ch.peopleDelayed.length) pressure.push({ code: 'PERSON_DELAYED', evidence: ch.peopleDelayed.map((id) => `${personName(ns, id)} available from ${clock(people.get(id).availableFrom)}`).join('; ') });
   if (ch.resourcesDown.length) pressure.push({ code: 'RESOURCE_DOWN', evidence: `${ch.resourcesDown.map((id) => resourceName(ns, id)).join(', ')} unavailable` });
   if (ch.longer.length) pressure.push({ code: 'DURATION_INCREASED', evidence: ch.longer.map((id) => `"${ns.tasks.find((t) => t.id === id).title}" takes longer`).join('; ') });
   const relax = [];
   if (ch.deadlineDelta > 0) relax.push({ code: 'DEADLINE_EXTENDED', evidence: `Deadline moved ${clock(prevState.scenario.deadlineMin)} → ${clock(ns.deadlineMin)}` });
   if (ch.budgetDelta > 0) relax.push({ code: 'BUDGET_RAISED', evidence: `Budget $${prevState.scenario.budgetCap} → $${ns.budgetCap}` });
+  if (ch.peopleBack.length) relax.push({ code: 'PERSON_RETURNED', evidence: ch.peopleBack.map((id) => `${personName(ns, id)} available again`).join('; ') });
+  if (ch.resourcesUp.length) relax.push({ code: 'RESOURCE_RESTORED', evidence: `${ch.resourcesUp.map((id) => resourceName(ns, id)).join(', ')} available again` });
   const budgetCut = ch.budgetDelta < 0 ? { code: 'BUDGET_CUT', evidence: `Budget $${prevState.scenario.budgetCap} → $${ns.budgetCap}` } : null;
   const turnCodes = [...pressure, ...(budgetCut ? [budgetCut] : []), ...relax].map((r) => r.code);
 
@@ -101,12 +107,16 @@ export function diffPlans({ prevState, prevPlan, nextState, nextPlan }) {
       } else if (kind === 'Restored') {
         if (relax.length) addAll(relax); else add('SCHEDULE_REBALANCED', 'Fits again in the recomputed plan');
       } else if (kind === 'Replaced') {
-        add('ALTERNATIVE_USED', `Now "${after.title}" (was "${before.title}")`);
+        if (after.variantId === 'base') add('ORIGINAL_VERSION', `Back to "${after.title}" (was "${before.title}")`);
+        else add('ALTERNATIVE_USED', `Now "${after.title}" (was "${before.title}")`);
+        const baseRes = getVariant(ns, task, 'base')?.resources || [];
+        const upRes = after.variantId === 'base' ? baseRes.filter((r) => ch.resourcesUp.includes(r)) : [];
         const oldVariant = getVariant(prevState.scenario, prevTasks.get(task.id), before.variantId)
           || getVariant(ns, task, before.variantId);
         const downRes = (oldVariant?.resources || []).filter((r) => ch.resourcesDown.includes(r));
         const lostPeople = oldVariant?.eligiblePeople?.length && oldVariant.eligiblePeople.every((pid) => ch.peopleLost.includes(pid));
-        if (downRes.length) add('RESOURCE_DOWN', `"${before.title}" needs ${downRes.map((r) => resourceName(ns, r)).join(', ')}, now unavailable`);
+        if (upRes.length) add('RESOURCE_RESTORED', `${upRes.map((r) => resourceName(ns, r)).join(', ')} available again`);
+        else if (downRes.length) add('RESOURCE_DOWN', `"${before.title}" needs ${downRes.map((r) => resourceName(ns, r)).join(', ')}, now unavailable`);
         else if (lostPeople) add('PERSON_UNAVAILABLE', `Nobody eligible for "${before.title}" is still available`);
         else if (budgetCut && after.actualCost < before.actualCost) add('BUDGET_CUT', `Saves $${before.actualCost - after.actualCost}; budget now $${ns.budgetCap}`);
         else if (ch.deadlineDelta < 0 && after.durationMin < before.durationMin) add('EARLIER_DEADLINE', `Saves ${before.durationMin - after.durationMin} min; deadline now ${clock(ns.deadlineMin)}`);
@@ -115,9 +125,15 @@ export function diffPlans({ prevState, prevPlan, nextState, nextPlan }) {
         const oldP = before.personId ? people.get(before.personId) : null;
         if (oldP && ch.peopleLost.includes(oldP.id) && oldP.availableTo < after.endMin) {
           add('PERSON_UNAVAILABLE', `${oldP.name} unavailable from ${clock(oldP.availableTo)}`);
+        } else if (oldP && ch.peopleDelayed.includes(oldP.id) && oldP.availableFrom > before.startMin) {
+          add('PERSON_DELAYED', `${oldP.name} only available from ${clock(oldP.availableFrom)}`);
+        } else if (after.personId && ch.peopleBack.includes(after.personId)) {
+          add('PERSON_RETURNED', `${personName(ns, after.personId)} is available again`);
         } else if (oldP && kinds.includes('Replaced')) {
           const nv = getVariant(ns, task, after.variantId);
-          if (nv && !nv.eligiblePeople.includes(oldP.id)) add('ALTERNATIVE_USED', `${oldP.name} is not listed for "${after.title}"`);
+          const versionCode = after.variantId === 'base' ? 'ORIGINAL_VERSION' : 'ALTERNATIVE_USED';
+          if (nv && nv.eligiblePeople.length === 0) add(versionCode, `"${after.title}" runs hands-free`);
+          else if (nv && !nv.eligiblePeople.includes(oldP.id)) add(versionCode, `${oldP.name} is not listed for "${after.title}"`);
           else add('SCHEDULE_REBALANCED', `Assigned to ${personName(ns, after.personId)} in the recomputed plan`);
         } else if (oldP) {
           const clash = busyWith(oldP.id, after.startMin, after.endMin, task.id);
@@ -143,6 +159,8 @@ export function diffPlans({ prevState, prevPlan, nextState, nextPlan }) {
           add('DEPENDENCY_PROPAGATION', `Starts when "${binding.title}" ends at ${clock(binding.endMin)}${prevBinding ? ` (was ${clock(prevBinding.endMin)})` : ''}`);
         } else if (before.endMin > ns.deadlineMin) {
           add('EARLIER_DEADLINE', `Old slot ended ${clock(before.endMin)}, after the new deadline ${clock(ns.deadlineMin)}`);
+        } else if (after.personId && ch.peopleDelayed.includes(after.personId) && after.startMin === people.get(after.personId).availableFrom) {
+          add('PERSON_DELAYED', `${personName(ns, after.personId)} only available from ${clock(after.startMin)}`);
         } else if (after.startMin > before.startMin) {
           const clash = after.personId ? [...nextMap.values()].find((st) => st.taskId !== task.id && st.personId === after.personId && st.endMin === after.startMin) : null;
           const resClash = !clash ? [...nextMap.values()].find((st) => st.taskId !== task.id && st.endMin === after.startMin && st.resources.some((r) => after.resources.includes(r))) : null;

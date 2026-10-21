@@ -75,6 +75,25 @@ export function renderWelcome(scenarios, notice) {
       recomputes a feasible plan, shows exactly what changed, and proves why. Every plan is checked by an independent validator.</p>
     </section>
     <section aria-label="Scenario gallery" class="tiles">${tiles}</section>
+    <section class="how" aria-label="How it works">
+      <ol class="how-steps">
+        <li><span class="how-n">1</span><div><strong>Plan</strong><p>Pick a household event. A deterministic scheduler builds a feasible plan across people, equipment, budget and the deadline.</p></div></li>
+        <li><span class="how-n">2</span><div><strong>Tell it what changed</strong><p>Type it the way you would say it, combine several changes, or use the structured form.</p></div></li>
+        <li><span class="how-n">3</span><div><strong>Repair &amp; prove</strong><p>The agent replans unfinished work, validates every constraint, and explains each moved, reassigned or dropped task.</p></div></li>
+      </ol>
+      <div class="try">
+        <h2>Things you can say</h2>
+        <ul class="try-list">
+          <li>“Guests are arriving an hour early and the oven broke.”</li>
+          <li>“Alex has to leave at 5 PM.”</li>
+          <li>“Leila is running 20 minutes late.”</li>
+          <li>“We only have $60 left.”</li>
+          <li>“The oven works again.”</li>
+          <li>“Skip the bread.” · “Can we still make it?” · “Undo.”</li>
+        </ul>
+        <p class="muted small">Without an LLM key these are read by a limited local rule parser; anything it cannot map is reported, never guessed.</p>
+      </div>
+    </section>
     <p class="fineprint">Simulated Alexa+-style web experience for a hackathon demo. Not affiliated with or endorsed by Amazon.
     All planning runs locally in your browser with a deterministic engine.</p>
   </main>`;
@@ -96,9 +115,10 @@ export function renderSetup(scenario, form, error) {
     <tr>
       <td>${esc(t.title)}</td>
       <td><span class="prio prio-${esc(t.priority)}">${esc(t.priority)}</span></td>
-      <td>${t.durationMin} min${t.compressible && t.minDurationMin < t.durationMin ? ` <small>(min ${t.minDurationMin})</small>` : ''}</td>
-      <td>$${t.cost}</td>
+      <td class="num">${t.durationMin} min${t.compressible && t.minDurationMin < t.durationMin ? `<small> · min ${t.minDurationMin}</small>` : ''}</td>
+      <td class="num">$${t.cost}</td>
       <td>${esc([...t.resources.map((r) => resourceName(scenario, r)), t.eligiblePeople.length ? '' : 'hands-free'].filter(Boolean).join(', ') || '—')}</td>
+      <td class="small">${esc([...t.dependsOn, ...(t.softDependsOn || [])].map((d) => scenario.tasks.find((x) => x.id === d)?.title).join(', ') || '—')}</td>
       <td>${t.alternatives.length ? esc(t.alternatives.map((a) => scenario.alternatives.find((x) => x.id === a)?.title).join(', ')) : '—'}</td>
     </tr>`).join('');
   return `
@@ -127,7 +147,7 @@ export function renderSetup(scenario, form, error) {
       <section class="card">
         <h2>Tasks in this scenario</h2>
         <div class="table-wrap"><table class="tasks">
-          <thead><tr><th>Task</th><th>Priority</th><th>Duration</th><th>Cost</th><th>Needs</th><th>Listed fallback</th></tr></thead>
+          <thead><tr><th>Task</th><th>Priority</th><th class="num">Duration</th><th class="num">Cost</th><th>Needs</th><th>After</th><th>Listed fallback</th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
         <p class="muted small">Only the listed fallbacks can replace a task — the planner never invents helpers, equipment or recipes.</p>
@@ -386,8 +406,8 @@ export function renderConstraints({ head, session, original }) {
   }).join('');
   const res = s.resources.map((r) => `<li class="${r.available ? '' : 'warn'}">${esc(r.name)} <span class="muted">×${r.capacity} · ${r.available ? 'available' : 'unavailable'}</span></li>`).join('');
   const typeOptions = [
-    ['deadline_earlier', 'Deadline earlier by…'], ['person_unavailable', 'Person becomes unavailable'],
-    ['resource_unavailable', 'Equipment breaks'], ['budget_reduced', 'Budget reduced to…'], ['duration_increase', 'Task takes longer…'],
+    ['deadline_earlier', 'Deadline earlier by…'], ['person_unavailable', 'Person becomes unavailable'], ['person_delayed', 'Person arrives late by…'],
+    ['resource_unavailable', 'Equipment breaks'], ['resource_restored', 'Equipment works again'], ['budget_reduced', 'Budget reduced to…'], ['duration_increase', 'Task takes longer…'],
   ].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
   return `
   <section class="card constraints" aria-labelledby="c-title">
@@ -418,6 +438,15 @@ export function manualParam(type, head) {
       return `<select data-field="m-person" aria-label="Person">${s.people.filter((p) => p.availableTo > p.availableFrom).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>`;
     case 'resource_unavailable':
       return `<select data-field="m-resource" aria-label="Equipment">${s.resources.filter((r) => r.available).map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select>`;
+    case 'resource_restored': {
+      const down = s.resources.filter((r) => !r.available);
+      return down.length
+        ? `<select data-field="m-resource" aria-label="Equipment">${down.map((r) => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('')}</select>`
+        : '<span class="muted small">No equipment is down</span>';
+    }
+    case 'person_delayed':
+      return `<select data-field="m-person" aria-label="Person">${s.people.filter((p) => p.availableTo > p.availableFrom).map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+        <input type="number" min="5" max="240" step="5" value="20" data-field="m-minutes" aria-label="Minutes late"> <span class="muted">min</span>`;
     case 'budget_reduced':
       return `<span class="muted">$</span><input type="number" min="0" max="${Math.max(0, s.budgetCap - 1)}" step="1" value="${Math.max(0, s.budgetCap - 20)}" data-field="m-cap" aria-label="New budget">`;
     case 'duration_increase':
@@ -494,10 +523,17 @@ export function renderTimeline({ session }) {
 }
 
 export function renderDock({ session, scenario, status, parser, draft }) {
-  const msgs = session.conversation.slice(-24).map((m) => `
+  const recent = session.conversation.slice(-24);
+  const lastAssistant = recent.map((m) => m.role).lastIndexOf('assistant');
+  const traceHtml = (m, open) => (m.trace?.length ? `
+      <details class="trace-wrap" ${open ? 'open' : ''}>
+        <summary>Agent steps (${m.trace.length})</summary>
+        <ol class="trace">${m.trace.map((t) => `<li class="tr tr-${esc(t.status)}"><span class="tr-step">${esc(t.step)}</span><span class="tr-detail">${esc(t.detail)}</span></li>`).join('')}</ol>
+      </details>` : '');
+  const msgs = recent.map((m, i) => `
     <li class="msg msg-${m.role} ${m.tone ? `tone-${m.tone}` : ''}">
       <div class="msg-who">${m.role === 'user' ? `You${m.source && m.source !== 'typed' ? ` · ${esc(m.source)}` : ''}` : 'PlanB'}</div>
-      <div class="msg-text">${esc(m.text)}</div>
+      <div class="msg-text">${esc(m.text)}</div>${traceHtml(m, i === lastAssistant)}
     </li>`).join('');
   const intro = `<li class="msg msg-assistant"><div class="msg-who">PlanB</div><div class="msg-text">Your ${esc(scenario.name.toLowerCase())} plan is ready and validated. Tell me what changed — or pick a quick command.</div></li>`;
   const chips = scenario.quickCommands.map((q) => `<button class="chip" data-action="quick" data-text="${esc(q.text)}" title="${esc(q.text)}">${esc(q.label)}</button>`).join('');

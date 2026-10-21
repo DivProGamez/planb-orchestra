@@ -102,6 +102,10 @@ try {
     expect(reasons.some((r) => /alternative used/i.test(r)), 'no ALTERNATIVE_USED badge');
     expect(await page.locator('.bar:has-text("Pan-sear")').count() === 1, 'pan-sear alternative not on chart');
     expect(await page.locator('.ghost').count() > 0, 'no previous-position ghosts');
+    const steps = await page.locator('.msg-assistant .trace-wrap[open] .tr-step').allTextContents();
+    for (const want of ['Intent detected', 'Constraints changed', 'Scheduling performed', 'Validation passed', 'Differences explained', 'Plan committed']) {
+      expect(steps.includes(want), `agent step "${want}" not shown (got: ${steps.join(', ')})`);
+    }
     await shot(page, '04-shock1-plan-b-1440');
     await page.click('[data-view="compare"]');
     expect(await page.locator('.gantt').count() === 2, 'compare view should show two charts');
@@ -161,6 +165,21 @@ try {
     expect(await page.locator('.msg.tone-failure').count() > 0, 'no failure message');
   });
 
+  await check('free-form requests: equipment breaks, then works again (original version restored)', async () => {
+    const before = await revs(page);
+    await send(page, 'The oven broke.', before + 1);
+    await send(page, 'Good news, the oven is fixed', before + 2);
+    const reasons = await page.locator('.why-card .reason').allTextContents();
+    expect(reasons.some((r) => /original version/i.test(r)), 'no ORIGINAL_VERSION badge');
+    expect(reasons.some((r) => /equipment back/i.test(r)), 'no RESOURCE_RESTORED badge');
+    await shot(page, '09b-oven-fixed-1440');
+    // With Leila already gone this may be honestly infeasible; either way the stated change must be exact.
+    await send(page, 'Alex has to leave at 5 PM');
+    const reply = await page.locator('.msg-assistant .msg-text').last().textContent();
+    expect(/Alex unavailable from 5:00 PM/.test(reply), `leave-at time not reflected: ${reply.slice(0, 160)}`);
+    if (await page.locator('#infeasible').count()) await page.click('[data-action="dismiss-proposal"]');
+  });
+
   await check('keyboard: Escape dismisses the infeasible panel', async () => {
     await send(page, 'Guests arrive 2 hours earlier');
     await page.waitForSelector('#infeasible');
@@ -206,6 +225,26 @@ try {
     await offline.waitForFunction(() => document.body.textContent.includes('not an LLM'));
     await send(offline, 'Can we still arrive on time?');
     expect(await offline.locator('.msg-assistant').count() >= 2, 'no reply while offline');
+  });
+
+  await check('phone 390×844 and tablet 768×1024: landing and setup fit without horizontal scroll', async () => {
+    const fresh = await browser.newContext();
+    const p = await fresh.newPage();
+    p.on('pageerror', (e) => consoleErrors.push(`mobile: ${e.message}`));
+    for (const [w, h] of [[390, 844], [768, 1024]]) {
+      await p.setViewportSize({ width: w, height: h });
+      await p.goto(base);
+      await p.waitForSelector('.tile');
+      let overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow <= 0, `landing overflow ${overflow}px at ${w}px`);
+      await shot(p, `12-landing-${w}x${h}`);
+      await p.click('.tile[data-id="dinner-for-six"]');
+      await p.waitForSelector('form[data-form="setup"]');
+      overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      expect(overflow <= 0, `setup overflow ${overflow}px at ${w}px`);
+      await shot(p, `13-setup-${w}x${h}`);
+    }
+    await fresh.close();
   });
 
   await check('no console errors during the run', async () => {

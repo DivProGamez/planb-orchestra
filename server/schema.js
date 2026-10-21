@@ -42,6 +42,7 @@ export function validateIntentResult(raw, state) {
     if (!spec) return { ok: false, error: `Unsupported shock type "${item.type}"` };
     const payload = {};
     for (const f of spec.fields) payload[f] = item[f];
+    for (const f of spec.optional || []) if (item[f] !== null && item[f] !== undefined) payload[f] = item[f];
     shocks.push({ type: item.type, payload });
   }
   const checked = validateShocks(shocks, state);

@@ -7,11 +7,15 @@ const NUMBER_WORDS = {
   'twenty-five': 25, thirty: 30, forty: 40, 'forty-five': 45, fifty: 50, sixty: 60, ninety: 90,
 };
 
-const NEG_PERSON = /\b(can'?t|cannot|can not|won'?t|isn'?t|is not|no longer|not (?:able|available|coming|here|around)|unavailable|sick|ill|has to (?:leave|go)|had to (?:leave|go)|leaving|left|bail(?:ed|ing)?|cancel(?:l?ed|s)?|dropped out|called (?:in|away)|busy|anymore|any more)\b/;
-const BROKEN = /\b(broke|broken|breaks|break down|broke down|down|not working|stopped working|died|dead|unavailable|out of (?:order|service)|failed|fails|is out|won'?t (?:start|turn on|work|heat)|in the shop|being used|taken)\b/;
+const NEG_PERSON = /\b(can'?t|cannot|can not|won'?t|isn'?t|is not|no longer|not (?:able|available|coming|here|around)|unavailable|sick|ill|has to (?:leave|go)|had to (?:leave|go)|leaving|left|went home|bail(?:ed|ing)?|cancel(?:l?ed|s)?|dropped out|called (?:in|into|away)|busy|anymore|any more|is out)\b|'s out\b/;
+const PERSON_BACK = /\b(is back|are back|back now|available again|can help again|free again|came back|returned)\b/;
+const PERSON_LATE = /\b(late|delayed|held up|stuck in traffic)\b/;
+const PERSON_LEAVES_AT = /\b(?:leave|leaving|go|going|stay|staying|help|helping|available|here)\b.*?\b(?:at|until|till|by)\s+\d/;
+const BROKEN = /\b(broke|broken|breaks|break down|broke down|down|not working|stopped working|died|dead|unavailable|out of (?:order|service)|failed|fails|is out|won'?t (?:start|turn on|work|heat)|in the shop|being used|taken|lost|is closed|no longer have|don'?t have|can'?t use|cannot use)\b/;
+const RESTORED = /\b(works again|working again|is fixed|was fixed|got fixed|fixed|repaired|is back|back on|available again|running again)\b/;
 const EARLIER = /\b(earl(?:y|ier)|sooner|ahead of (?:time|schedule)|moved up|brought forward)\b/;
-const LATER = /\b(later|delayed|pushed back)\b/;
-const LONGER = /\b(longer|more time|late|behind|overrun(?:ning)?|running over|extra)\b/;
+const LATER = /\b(later|delayed|postponed|moved back|push(?:ed|ing)?\s+(?:\w+\s+){0,3}back)\b/;
+const LONGER = /\b(longer|more time|more|additional|late|behind|overrun(?:ning)?|running over|extra)\b/;
 
 function escapeRe(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -23,7 +27,8 @@ function wordRe(word) {
 
 /** Finds the first duration expression in a clause, in minutes. */
 export function findDuration(text) {
-  const t = text.toLowerCase();
+  // "10 more minutes" / "an extra 15 minutes" → "10 minutes" / "15 minutes".
+  const t = text.toLowerCase().replace(/\b(\d+)\s+(?:more|extra|additional)\s+(minutes?|mins?|hours?|hrs?)\b/g, (m, n, unit) => n + ' ' + unit);
   const rules = [
     [/\b(?:an?|one)\s+hour\s+and\s+a\s+half\b/, () => 90],
     [/\bhalf\s+an?\s+hour\b/, () => 30],
@@ -40,14 +45,14 @@ export function findDuration(text) {
 }
 
 /** Finds a clock time ("6:30", "6 pm") and converts it to scenario minutes near a reference. */
-export function findClockTime(text, scenario, referenceMin) {
-  const m = text.toLowerCase().match(/\b(?:at|by|for|to|is|now)\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?(?=\s|$|[.,!?])/);
+export function findClockTime(text, scenario, referenceMin, { allowBare = false } = {}) {
+  const m = text.toLowerCase().match(/\b(?:at|by|for|to|is|now|until|till)\s+(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)?(?=\s|$|[.,!?])/);
   if (!m) return null;
   let hour = parseInt(m[1], 10);
   const minute = m[2] ? parseInt(m[2], 10) : 0;
   if (hour > 23 || minute > 59) return null;
   const suffix = m[3]?.replace(/\./g, '');
-  if (!m[2] && !suffix) return null; // a bare number is more likely a quantity than a time
+  if (!m[2] && !suffix && !allowBare) return null; // a bare number is more likely a quantity than a time
   const candidates = [];
   if (suffix === 'pm') candidates.push((hour % 12) + 12);
   else if (suffix === 'am') candidates.push(hour % 12);
@@ -85,7 +90,7 @@ export function parseCommand(text, state) {
   if (!raw) return { ...out, intent: 'empty' };
   const lower = raw.toLowerCase();
 
-  if (/\b(undo|revert|take (?:that|it) back)\b/.test(lower)) return { ...out, intent: 'undo' };
+  if (/\b(undo|revert|take (?:that|it) back)\b|^(?:please\s+)?go back\b/.test(lower)) return { ...out, intent: 'undo' };
   if (/\b(restore|reset|start over|original plan)\b/.test(lower)) return { ...out, intent: 'restore' };
   if (/^(help|what can (?:you|i) (?:do|say)|commands)\b/.test(lower)) return { ...out, intent: 'help' };
 
@@ -110,30 +115,43 @@ export function parseCommand(text, state) {
     out.matches.push({ type: shock.type, phrase });
   };
 
-  // People who can no longer help — matched per sentence so "Sam and Leila can't help" works.
+  // People — matched per sentence so "Sam and Leila can't help" works.
+  const personSentences = new Set();
   for (const sentence of raw.split(/(?<=[.!?;])\s+/)) {
     const c = sentence.toLowerCase();
-    if (!NEG_PERSON.test(c) || /\b(is back|available again|can help again)\b/.test(c)) continue;
-    for (const p of s.people) {
-      const names = [p.name, ...(p.aliases || [])];
-      if (names.some((n) => wordRe(n).test(c))) push({ type: 'person_unavailable', payload: { personId: p.id } }, sentence);
+    const named = s.people.filter((p) => [p.name, ...(p.aliases || [])].some((n) => wordRe(n).test(c)));
+    for (const p of named) {
+      if (PERSON_BACK.test(c)) {
+        push({ type: 'person_available', payload: { personId: p.id } }, sentence);
+      } else if (PERSON_LATE.test(c) && findDuration(c) && !findTask(c, s.tasks)) {
+        push({ type: 'person_delayed', payload: { personId: p.id, minutes: findDuration(c) } }, sentence);
+      } else if (PERSON_LEAVES_AT.test(c) && findClockTime(c, s, state.nowMin, { allowBare: true }) !== null) {
+        const at = findClockTime(c, s, state.nowMin, { allowBare: true });
+        push({ type: 'person_unavailable', payload: at > state.nowMin ? { personId: p.id, fromMin: at } : { personId: p.id } }, sentence);
+      } else if (NEG_PERSON.test(c)) {
+        push({ type: 'person_unavailable', payload: { personId: p.id } }, sentence);
+      } else continue;
+      personSentences.add(c);
     }
   }
 
   for (const clause of clauses) {
     const c = clause.toLowerCase();
 
-    // Equipment outages.
-    if (BROKEN.test(c)) {
-      for (const r of s.resources) {
-        const names = [r.name, ...(r.aliases || [])];
-        if (names.some((n) => wordRe(n).test(c))) push({ type: 'resource_unavailable', payload: { resourceId: r.id } }, clause);
-      }
+    // Equipment outages and repairs.
+    for (const r of s.resources) {
+      const names = [r.name, ...(r.aliases || [])];
+      if (!names.some((n) => wordRe(n).test(c))) continue;
+      if (RESTORED.test(c)) push({ type: 'resource_restored', payload: { resourceId: r.id } }, clause);
+      else if (BROKEN.test(c) || names.some((n) => wordRe('no ' + n).test(c))) push({ type: 'resource_unavailable', payload: { resourceId: r.id } }, clause);
     }
     // Budget changes.
     if (/\b(budget|spend|dollars?|bucks)\b|\$/.test(c)) {
-      const by = c.match(/\b(?:cut|reduce|lower|drop|trim|slash)\w*\s+(?:the\s+|our\s+|my\s+)?budget\s+by\s+\$?\s*(\d+)/);
-      const to = c.match(/\bbudget\b[^\d$]{0,30}\$?\s*(\d+)/) || c.match(/\bonly\s+(?:have|got|can spend)\s+\$?\s*(\d+)/) || c.match(/\$\s*(\d+)\s+(?:left|total|max|budget)/);
+      const by = c.match(/\b(?:cut|reduce|lower|drop|trim|slash)\w*\s+(?:the\s+|our\s+|my\s+)?budget\s+by\s+\$?\s*(\d+)/)
+        || c.match(/\bbudget\s+(?:is\s+|was\s+|got\s+|has\s+been\s+)?(?:cut|reduced|lowered|dropped|down|slashed)\s+by\s+\$?\s*(\d+)/);
+      const to = c.match(/\b(?:no more than|at most|maximum of|max of|cap(?:ped)? at|under)\s+\$?\s*(\d+)/)
+        || c.match(/\b(?:can|could)\s+only\s+spend\s+\$?\s*(\d+)/)
+        || c.match(/\bbudget\b[^\d$]{0,30}\$?\s*(\d+)/) || c.match(/\bonly\s+(?:have|got|can spend)\s+\$?\s*(\d+)/) || c.match(/\$\s*(\d+)\s+(?:left|total|max|budget)/);
       let newCap = null;
       if (by) newCap = s.budgetCap - parseInt(by[1], 10);
       else if (to) newCap = parseInt(to[1], 10);
@@ -143,23 +161,24 @@ export function parseCommand(text, state) {
         else out.notes.push(`The budget is already $${s.budgetCap}.`);
       }
     }
-    // Task overruns.
-    if (LONGER.test(c) && !EARLIER.test(c)) {
+    // Task overruns (a person running late is handled above).
+    if (LONGER.test(c) && !EARLIER.test(c) && !personSentences.has(c)) {
       const minutes = findDuration(c);
       const task = findTask(c, s.tasks.filter((t) => t.status === 'todo'));
       if (minutes && task) push({ type: 'duration_increase', payload: { taskId: task.id, extraMin: minutes } }, clause);
       else if (minutes && !task && !/\b(guests?|arriv|deadline)\b/.test(c)) out.notes.push('I could not tell which task is running long.');
     }
     // Deadline changes (relative or absolute).
-    const deadlineContext = /\b(guests?|arriv\w*|deadline|due|party|dinner|serve|leave|leaving|start|be there|reservation|check-?in)\b/.test(c);
+    const deadlineContext = /\b(guests?|arriv\w*|deadline|due|party|dinner|serve|be there|be at|get there|need to be|must be|reservation|check-?in)\b/.test(c);
+    const mentionsPerson = s.people.some((p) => [p.name, ...(p.aliases || [])].some((n) => wordRe(n).test(c)));
     if (EARLIER.test(c) && !LONGER.test(c)) {
       const minutes = findDuration(c);
       if (minutes) push({ type: 'deadline_earlier', payload: { minutes } }, clause);
     } else if (LATER.test(c) && deadlineContext) {
       const minutes = findDuration(c);
       if (minutes) push({ type: 'deadline_extended', payload: { minutes } }, clause);
-    } else if (deadlineContext && /\b(now|instead|moved|changed|at|by)\b/.test(c)) {
-      const at = findClockTime(c, s, s.deadlineMin);
+    } else if (deadlineContext && !mentionsPerson && /\b(now|instead|moved|changed|at|by)\b/.test(c)) {
+      const at = findClockTime(c, s, s.deadlineMin, { allowBare: /\b(?:at|by)\s+\d{1,2}\b(?!:)/.test(c) });
       if (at !== null && at !== s.deadlineMin) {
         if (at < s.deadlineMin) push({ type: 'deadline_earlier', payload: { minutes: s.deadlineMin - at } }, clause);
         else push({ type: 'deadline_extended', payload: { minutes: at - s.deadlineMin } }, clause);

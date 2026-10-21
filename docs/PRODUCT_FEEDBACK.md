@@ -6,7 +6,7 @@ If you test official Amazon tooling before submitting, add a section from your o
 
 ## Node.js (v24.11.0) — built-in test runner `node:test`
 
-- **Used for:** 31 unit, integration and randomized-audit tests; no test framework dependency.
+- **Used for:** 80 unit, integration, scenario, parser-corpus, offline LLM-adapter and randomized-audit tests; no test framework dependency.
 - **Worked well:** zero install, ESM support, `t.diagnostic()` for reporting audit counts.
 - **Would use again:** yes.
 
@@ -18,7 +18,7 @@ If you test official Amazon tooling before submitting, add a section from your o
 
 ## playwright-core 1.56.1 with locally installed Chrome
 
-- **Used for:** 15-check browser smoke test and every screenshot in `evidence/`, without downloading a browser.
+- **Used for:** 17-check browser smoke test and every screenshot in `evidence/`, without downloading a browser.
 - **Worked well:** `executablePath` to an existing Chrome; `route()` to simulate an API outage.
 - **Friction (our mistake, worth noting):** each `browser.newContext()` has its own localStorage, so a "reload restores
   the session" check in a new context initially failed; using one context fixed it.
@@ -27,5 +27,5 @@ If you test official Amazon tooling before submitting, add a section from your o
 ## Anthropic TypeScript SDK 0.137.0 (optional adapter)
 
 - **Used for:** `server/llm-adapter.js` (structured output via `messages.parse` + `zodOutputFormat`).
-- **Verified:** the package imports and exposes those functions. **Not verified:** any live request — no API key was
+- **Verified:** the package imports and exposes those functions; the adapter logic is tested offline with an injected stub client. **Not verified:** any live request — no API key was
   available, so no claim is made about latency, accuracy or cost.

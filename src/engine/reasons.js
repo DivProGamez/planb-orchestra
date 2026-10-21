@@ -15,6 +15,10 @@ export const REASONS = {
   DEADLINE_EXTENDED: { label: 'Deadline extended', tone: 'ok' },
   BUDGET_RAISED: { label: 'Budget raised', tone: 'ok' },
   USER_SKIPPED: { label: 'Skipped by you', tone: 'muted' },
+  PERSON_DELAYED: { label: 'Arrives late', tone: 'warn' },
+  PERSON_RETURNED: { label: 'Person back', tone: 'ok' },
+  RESOURCE_RESTORED: { label: 'Equipment back', tone: 'ok' },
+  ORIGINAL_VERSION: { label: 'Original version', tone: 'ok' },
 };
 
 export const DIFF_KINDS = ['Removed', 'Restored', 'Replaced', 'Reassigned', 'Shortened', 'Lengthened', 'Moved', 'Unchanged'];

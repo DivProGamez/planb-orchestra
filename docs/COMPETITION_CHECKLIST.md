@@ -6,7 +6,7 @@ Checked = verified in this repository. Unchecked = not done or needs the operato
 ## Build (verified)
 
 - [x] Running app with plan → shock → replan → diff → second shock → undo → reload → infeasible flow (smoke test, `docs/TEST_REPORT.md`).
-- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` (31 unit/integration/audit, 15 browser checks).
+- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` (80 unit/integration/scenario/corpus/adapter/audit tests, 17 browser checks).
 - [x] All three baseline scenarios independently validated; hard and impossible cases tested.
 - [x] UI labels the simulated Alexa+ experience and the limited local parser; no Amazon logo or endorsement claim.
 - [x] `.env` ignored; `.env.example` contains names only; no keys, passwords or personal data in the repo.

@@ -1,13 +1,16 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T09:58Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T10:40Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
-## `npm test` (node:test — unit, integration, randomized audit)
+## `npm test` (node:test)
+
+Suites: planner (G1 gates), shocks/reasons, parser corpus (34 phrasings + 7 negatives), new change types,
+scenario stories (all three), persistence, integration + server, offline LLM adapter (stub client), randomized audit.
 
 ```
-ℹ feasible replans checked: 476; infeasible outcomes checked: 132
-ℹ tests 31
-ℹ pass 31
+ℹ feasible replans checked: 911; infeasible outcomes checked: 148
+ℹ tests 80
+ℹ pass 80
 ℹ fail 0
 ```
 
@@ -23,18 +26,22 @@ PASS  impossible budget is rejected with proven violation and two verified optio
 PASS  undo goes back one revision; restore returns to the original
 PASS  structured change form uses the same engine path
 PASS  unsupported phrasing fails visibly without changing the plan
+PASS  free-form requests: equipment breaks, then works again (original version restored)
 PASS  keyboard: Escape dismisses the infeasible panel
 PASS  1280×720: restored session renders without horizontal page overflow
 PASS  1024×768 tablet: stacked layout without horizontal page overflow
 PASS  other scenarios build feasible baselines
 PASS  API outage does not blank the app (falls back to local parser)
+PASS  phone 390×844 and tablet 768×1024: landing and setup fit without horizontal scroll
 PASS  no console errors during the run
-Smoke: 15 passed, 0 failed. Screenshots in evidence/
+Smoke: 17 passed, 0 failed. Screenshots in evidence/
 ```
 
 Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.
 
 ## Not tested
 
-- Live LLM requests (no API key available). Only SDK import/shape was checked locally.
+- Live LLM requests (no API key available). The adapter is exercised only with an injected stub client; nothing is
+  claimed about a real model's parsing accuracy, latency or cost.
 - Real Alexa devices or APIs (none are used; this is a simulation).
+- Browsers other than desktop Chrome (phone/tablet sizes were emulated by viewport, not real devices).

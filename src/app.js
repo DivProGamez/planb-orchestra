@@ -83,6 +83,7 @@ async function detectParser() {
 async function parseText(text, source) {
   const head = currentRevision(ui.session);
   const state = { ...head.state, nowMin: ui.session.nowMin };
+  let fallback = null;
   if (ui.parser.mode === 'llm') {
     try {
       const ctrl = new AbortController();
@@ -96,11 +97,12 @@ async function parseText(text, source) {
       clearTimeout(timer);
       const body = await res.json();
       if (res.ok && body.ok) return { ...body.parsed, source: 'llm' };
-    } catch {
-      // Fall through to the labelled local parser.
+      fallback = body.reason || body.error || `HTTP ${res.status}`;
+    } catch (err) {
+      fallback = err.name === 'AbortError' ? 'timed out' : 'server unreachable';
     }
   }
-  return { ...parseCommand(text, state), source };
+  return { ...parseCommand(text, state), source, ...(fallback ? { fallback } : {}) };
 }
 
 /* ---------- Actions ---------- */
@@ -213,6 +215,8 @@ function manualSubmit(form) {
     resource_unavailable: () => ({ resourceId: val('m-resource') }),
     budget_reduced: () => ({ newCap: num('m-cap') }),
     duration_increase: () => ({ taskId: val('m-task'), extraMin: num('m-extra') }),
+    person_delayed: () => ({ personId: val('m-person'), minutes: num('m-minutes') }),
+    resource_restored: () => ({ resourceId: val('m-resource') }),
   }[type]();
   const label = form.querySelector('[data-field="m-type"]').selectedOptions[0].textContent.replace('…', '');
   runTurn(`${label} ${Object.values(payload).join(' ')}`.trim(), { intent: 'shocks', shocks: [{ type, payload }], parser: 'form', source: 'form' });

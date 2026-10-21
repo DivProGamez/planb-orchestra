@@ -23,10 +23,15 @@ function rng(seed) {
 function randomShock(r, state) {
   const s = state.scenario;
   const pick = (list) => list[Math.floor(r() * list.length)];
-  const kind = pick(['deadline_earlier', 'person_unavailable', 'resource_unavailable', 'budget_reduced', 'duration_increase']);
+  const kind = pick(['deadline_earlier', 'person_unavailable', 'person_leaves_later', 'person_delayed', 'resource_unavailable',
+    'resource_restored', 'person_available', 'budget_reduced', 'duration_increase']);
   switch (kind) {
     case 'deadline_earlier': return { type: kind, payload: { minutes: 5 * (1 + Math.floor(r() * 12)) } };
     case 'person_unavailable': return { type: kind, payload: { personId: pick(s.people).id } };
+    case 'person_leaves_later': return { type: 'person_unavailable', payload: { personId: pick(s.people).id, fromMin: state.nowMin + 5 * (1 + Math.floor(r() * 18)) } };
+    case 'person_delayed': return { type: kind, payload: { personId: pick(s.people).id, minutes: 5 * (1 + Math.floor(r() * 8)) } };
+    case 'resource_restored': return { type: kind, payload: { resourceId: pick(s.resources).id } };
+    case 'person_available': return { type: kind, payload: { personId: pick(s.people).id } };
     case 'resource_unavailable': return { type: kind, payload: { resourceId: pick(s.resources).id } };
     case 'budget_reduced': return { type: kind, payload: { newCap: Math.max(0, s.budgetCap - 5 * (1 + Math.floor(r() * 8))) } };
     default: {
@@ -77,15 +82,15 @@ function bruteForceCheck(state, plan) {
   return errors;
 }
 
-test('audit: 300 random two-to-three-shock sequences keep every hard constraint', (t) => {
+test('audit: 500 random two-to-four-shock sequences keep every hard constraint', (t) => {
   const r = rng(20261021);
   let feasible = 0;
   let infeasible = 0;
-  for (let run = 0; run < 300; run++) {
+  for (let run = 0; run < 500; run++) {
     const scenario = SCENARIOS[run % SCENARIOS.length];
     let state = stateOf(scenario);
     let plan = planSchedule(state);
-    const steps = 2 + Math.floor(r() * 2);
+    const steps = 2 + Math.floor(r() * 3);
     for (let k = 0; k < steps; k++) {
       const at = Math.min(state.scenario.deadlineMin - 5, state.nowMin + Math.floor(r() * 50));
       const frozenState = applyShocks(state, plan, [], at);

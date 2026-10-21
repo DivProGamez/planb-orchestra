@@ -6,13 +6,16 @@ import { clone, indexById, isInt, formatClock, COMMITTED_STATUSES } from './mode
 /** Unexpected events plus user-confirmed relaxations offered after an infeasible result. */
 export const SHOCK_TYPES = {
   deadline_earlier: { fields: ['minutes'], label: 'Deadline earlier' },
-  person_unavailable: { fields: ['personId'], label: 'Person unavailable' },
+  person_unavailable: { fields: ['personId'], optional: ['fromMin'], label: 'Person unavailable' },
+  person_delayed: { fields: ['personId', 'minutes'], label: 'Person arrives late' },
   resource_unavailable: { fields: ['resourceId'], label: 'Equipment unavailable' },
   budget_reduced: { fields: ['newCap'], label: 'Budget reduced' },
   duration_increase: { fields: ['taskId', 'extraMin'], label: 'Task takes longer' },
   deadline_extended: { fields: ['minutes'], label: 'Deadline extended', relaxation: true },
   budget_increased: { fields: ['newCap'], label: 'Budget increased', relaxation: true },
   task_skipped: { fields: ['taskId'], label: 'Task skipped', relaxation: true },
+  resource_restored: { fields: ['resourceId'], label: 'Equipment available again', relaxation: true },
+  person_available: { fields: ['personId'], label: 'Person available again', relaxation: true },
 };
 
 export const MAX_SHOCKS_PER_TURN = 4;
@@ -33,7 +36,8 @@ export function normalizeShock(shock, state) {
   if (!spec) return fail(`Unsupported shock type "${shock.type}"`);
   const payload = shock.payload;
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return fail(`${shock.type}: payload must be an object`);
-  const extra = Object.keys(payload).filter((k) => !spec.fields.includes(k));
+  const allowed = [...spec.fields, ...(spec.optional || [])];
+  const extra = Object.keys(payload).filter((k) => !allowed.includes(k));
   if (extra.length) return fail(`${shock.type}: unexpected field(s) ${extra.join(', ')}`);
   for (const f of spec.fields) if (!(f in payload)) return fail(`${shock.type}: missing field ${f}`);
 
@@ -54,6 +58,29 @@ export function normalizeShock(shock, state) {
       const p = people.get(payload.personId);
       if (!p) return fail(`Unknown person "${payload.personId}"`);
       if (p.availableTo <= Math.max(state.nowMin, p.availableFrom)) return fail(`${p.name} is already unavailable`);
+      if ('fromMin' in payload) {
+        if (!intIn(payload.fromMin, state.nowMin, 10000)) return fail(`${p.name}: the leaving time must not be before the current time ${formatClock(s, state.nowMin)}`);
+        if (payload.fromMin >= p.availableTo) return fail(`${p.name} is already gone by ${formatClock(s, p.availableTo)}`);
+      }
+      break;
+    }
+    case 'person_delayed': {
+      const p = people.get(payload.personId);
+      if (!p) return fail(`Unknown person "${payload.personId}"`);
+      if (!intIn(payload.minutes, 1, 480)) return fail('person_delayed: minutes must be an integer from 1 to 480');
+      if (p.availableTo <= Math.max(state.nowMin, p.availableFrom)) return fail(`${p.name} is already unavailable`);
+      break;
+    }
+    case 'person_available': {
+      const p = people.get(payload.personId);
+      if (!p) return fail(`Unknown person "${payload.personId}"`);
+      if (p.baseAvailableTo === undefined && p.baseAvailableFrom === undefined) return fail(`${p.name} was not marked unavailable or late`);
+      break;
+    }
+    case 'resource_restored': {
+      const r = resources.get(payload.resourceId);
+      if (!r) return fail(`Unknown equipment "${payload.resourceId}"`);
+      if (r.available) return fail(`${r.name} is already available`);
       break;
     }
     case 'resource_unavailable': {
@@ -88,7 +115,7 @@ export function normalizeShock(shock, state) {
     default:
       return fail(`Unsupported shock type "${shock.type}"`);
   }
-  const normalized = { type: shock.type, payload: Object.fromEntries(spec.fields.map((f) => [f, payload[f]])) };
+  const normalized = { type: shock.type, payload: Object.fromEntries(allowed.filter((f) => f in payload).map((f) => [f, payload[f]])) };
   return { ok: true, shock: normalized };
 }
 
@@ -150,9 +177,29 @@ export function applyShockToState(state, shock, atMin) {
       break;
     case 'person_unavailable': {
       const person = s.people.find((x) => x.id === p.personId);
-      person.availableTo = Math.max(person.availableFrom, Math.min(person.availableTo, atMin));
+      if (person.baseAvailableTo === undefined) person.baseAvailableTo = person.availableTo;
+      const from = p.fromMin ?? atMin;
+      person.availableTo = Math.max(person.availableFrom, Math.min(person.availableTo, from));
       break;
     }
+    case 'person_delayed': {
+      const person = s.people.find((x) => x.id === p.personId);
+      if (person.baseAvailableFrom === undefined) person.baseAvailableFrom = person.availableFrom;
+      person.availableFrom = Math.min(person.availableTo, Math.max(person.availableFrom, atMin) + p.minutes);
+      break;
+    }
+    case 'person_available': {
+      // Available again from now on, within the original window.
+      const person = s.people.find((x) => x.id === p.personId);
+      if (person.baseAvailableTo !== undefined) person.availableTo = person.baseAvailableTo;
+      if (person.baseAvailableFrom !== undefined) person.availableFrom = Math.max(person.baseAvailableFrom, Math.min(person.availableFrom, atMin));
+      delete person.baseAvailableTo;
+      delete person.baseAvailableFrom;
+      break;
+    }
+    case 'resource_restored':
+      s.resources.find((x) => x.id === p.resourceId).available = true;
+      break;
     case 'resource_unavailable':
       s.resources.find((x) => x.id === p.resourceId).available = false;
       break;
@@ -192,7 +239,13 @@ export function describeShock(shock, state) {
   switch (shock.type) {
     case 'deadline_earlier': return `Deadline ${p.minutes} min earlier (${clock(s.deadlineMin)} → ${clock(s.deadlineMin - p.minutes)})`;
     case 'deadline_extended': return `Deadline extended ${p.minutes} min (${clock(s.deadlineMin)} → ${clock(s.deadlineMin + p.minutes)})`;
-    case 'person_unavailable': return `${s.people.find((x) => x.id === p.personId)?.name || p.personId} unavailable from ${clock(state.nowMin)}`;
+    case 'person_unavailable': return `${s.people.find((x) => x.id === p.personId)?.name || p.personId} unavailable from ${clock(p.fromMin ?? state.nowMin)}`;
+    case 'person_delayed': {
+      const person = s.people.find((x) => x.id === p.personId);
+      return `${person?.name || p.personId} arrives ${p.minutes} min later (from ${clock(Math.max(person?.availableFrom ?? 0, state.nowMin) + p.minutes)})`;
+    }
+    case 'person_available': return `${s.people.find((x) => x.id === p.personId)?.name || p.personId} available again`;
+    case 'resource_restored': return `${s.resources.find((x) => x.id === p.resourceId)?.name || p.resourceId} available again`;
     case 'resource_unavailable': return `${s.resources.find((x) => x.id === p.resourceId)?.name || p.resourceId} unavailable`;
     case 'budget_reduced': return `Budget cut to $${p.newCap} (was $${s.budgetCap})`;
     case 'budget_increased': return `Budget raised to $${p.newCap} (was $${s.budgetCap})`;

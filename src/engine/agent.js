@@ -8,7 +8,7 @@ import {
   currentRevision, proposeShocks, commitProposal, recordRejected, undoLast, restoreBaseline,
   advanceClock, appendLog, liveStatus,
 } from './session.js';
-import { freezeAt, validateShocks } from './shocks.js';
+import { freezeAt, validateShocks, SHOCK_TYPES } from './shocks.js';
 
 const nowMs = () => (globalThis.performance ? globalThis.performance.now() : Date.now());
 
@@ -74,9 +74,54 @@ export function explainRejection(proposal) {
   return `No feasible plan for: ${proposal.descriptions.join('; ')}. ${lines.join(' ')} ${opts}`;
 }
 
-const HELP = 'I can replan when the deadline moves earlier, someone becomes unavailable, equipment breaks, the budget shrinks, or a task runs long. '
-  + 'Try: "Guests will arrive 60 minutes earlier. The oven is broken.", "Sam cannot help anymore.", "Our budget is now $55.", '
-  + '"Advance the clock 30 minutes", "Can we still serve on time?", or "Undo the last change."';
+const PARSER_LABEL = { llm: 'LLM adapter, schema-validated', form: 'structured form', local: 'local rule parser (limited)' };
+const INTENT_LABEL = {
+  shocks: 'change request', undo: 'undo', restore: 'restore the original plan', advance: 'advance the clock',
+  status: 'status question', help: 'help request', unknown: 'not understood', empty: 'empty input',
+};
+
+function intentStep(parsed) {
+  const changes = (parsed.shocks || []).map((sh) => SHOCK_TYPES[sh.type]?.label || sh.type);
+  return {
+    step: 'Intent detected',
+    status: parsed.intent === 'unknown' || parsed.intent === 'empty' ? 'fail' : 'ok',
+    detail: `${INTENT_LABEL[parsed.intent] || parsed.intent} via ${PARSER_LABEL[parsed.parser] || PARSER_LABEL.local}${parsed.fallback ? ` (LLM not used: ${parsed.fallback})` : ''}${changes.length ? ` — ${changes.join(' + ')}` : ''}`,
+  };
+}
+
+function schedulingStep(plan) {
+  const facts = [];
+  if (plan.feasible) {
+    const alts = plan.search.alternativesUsed?.length || 0;
+    const comp = plan.search.compressedTasks?.length || 0;
+    const dropped = plan.dropped.filter((d) => d.cause !== 'user').length;
+    if (alts) facts.push(`${alts} listed alternative${alts === 1 ? '' : 's'} in use`);
+    if (comp) facts.push(`${comp} task${comp === 1 ? '' : 's'} compressed`);
+    if (dropped) facts.push(`${dropped} optional task${dropped === 1 ? '' : 's'} dropped`);
+  }
+  return {
+    step: 'Scheduling performed',
+    status: plan.feasible ? 'ok' : 'warn',
+    detail: `${plan.search.configsTried} configuration${plan.search.configsTried === 1 ? '' : 's'} searched in ${plan.search.ms} ms → ${plan.feasible ? 'feasible' : 'no feasible plan'}${facts.length ? ` (${facts.join(', ')})` : ''}`,
+  };
+}
+
+function diffStep(diff) {
+  const counts = {};
+  for (const e of diff.changed) counts[e.kind] = (counts[e.kind] || 0) + 1;
+  const parts = Object.entries(counts).map(([k, n]) => `${n} ${k.toLowerCase()}`);
+  const codes = [...new Set(diff.changed.flatMap((e) => e.reasons.map((r) => reasonLabel(r.code).toLowerCase())))];
+  return {
+    step: 'Differences explained',
+    status: 'ok',
+    detail: `${diff.changed.length} changed${parts.length ? ` (${parts.join(', ')})` : ''}, ${diff.entries.length - diff.changed.length} unchanged${codes.length ? ` — reasons: ${codes.join(', ')}` : ''}`,
+  };
+}
+
+const HELP = 'I can replan when the deadline moves, someone leaves, arrives late or comes back, equipment breaks or is fixed, '
+  + 'the budget changes, a task runs long, or you want to skip something. Several changes can go in one message. '
+  + 'Try: "Guests are arriving an hour early and the oven broke.", "Alex has to leave at 5 PM", "Leila is running 20 minutes late", '
+  + '"We only have $60 left", "The oven works again", "Skip the bread", "Can we still make it?", or "Undo".';
 
 /**
  * Runs one agent turn. `parsed` comes from the local parser or the validated LLM adapter.
@@ -90,6 +135,7 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
   let next = session;
   let reply;
   let proposal = null;
+  const trace = [intentStep(parsed)];
 
   switch (parsed.intent) {
     case 'shocks': {
@@ -97,6 +143,7 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
       const check = st.run('validate_shocks', () => validateShocks(parsed.shocks, freezeAt(head.state, head.plan, session.nowMin)),
         (r) => (r.ok ? `${r.shocks.length} change(s) accepted by schema` : r.errors.join('; ')));
       if (!check.ok) {
+        trace.push({ step: 'Constraints checked', status: 'fail', detail: `Rejected before planning: ${check.errors.join('; ')}` });
         reply = { tone: 'failure', text: `I can't apply that: ${check.errors.join('; ')}. Your plan is unchanged.` };
         break;
       }
@@ -104,17 +151,26 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
       proposal = st.run('plan_schedule', () => proposeShocks(session, parsed.shocks, { source }),
         (p) => (p.ok ? `${p.plan.search.configsTried} configuration(s) searched in ${p.plan.search.ms} ms → ${p.plan.feasible ? 'feasible' : 'infeasible'}` : p.errors.join('; ')));
       if (!proposal.ok) {
+        trace.push({ step: 'Constraints checked', status: 'fail', detail: proposal.errors.join('; ') });
         reply = { tone: 'failure', text: `I can't apply that: ${proposal.errors.join('; ')}.` };
         proposal = null;
         break;
       }
+      trace.push({ step: 'Constraints changed', status: 'ok', detail: `${proposal.descriptions.join('; ')} — at ${formatClock(head.state.scenario, proposal.atMin)}, ${Object.keys(proposal.state.committed).length} started/done task(s) frozen` });
+      trace.push(schedulingStep(proposal.plan));
       if (proposal.feasible) {
+        trace.push({ step: 'Validation passed', status: 'ok', detail: `validatePlan(): ${proposal.plan.validation.checks} independent checks, 0 violations` });
+        trace.push(diffStep(proposal.diff));
         st.note('validate_plan', 'ok', `validatePlan(): ${proposal.plan.validation.checks} checks, 0 violations`);
         st.note('explain_diff', 'ok', `${proposal.diff.changed.length} changed · ${proposal.diff.entries.length - proposal.diff.changed.length} unchanged · codes: ${[...new Set(proposal.diff.changed.flatMap((e) => e.reasons.map((r) => r.code)))].join(', ') || 'none'}`);
         next = commitProposal(session, proposal, { now });
         st.note('commit_revision', 'ok', `Committed ${currentRevision(next).id}`);
+        trace.push({ step: 'Plan committed', status: 'ok', detail: `Revision ${currentRevision(next).id} saved; undo returns to ${head.id}` });
         reply = { tone: 'done', text: explainCommit(proposal) };
       } else {
+        trace.push({ step: 'Validation failed', status: 'fail', detail: proposal.plan.violations.map((v) => `${v.code} (${v.proof === 'proven' ? 'proven' : 'bounded search'})`).join(', ') });
+        trace.push({ step: 'Options verified', status: proposal.options.length ? 'ok' : 'warn', detail: proposal.options.length ? `${proposal.options.length} option(s) re-planned and validated: ${proposal.options.map((o) => o.label).join(' | ')}` : 'No single relaxation restores feasibility' });
+        trace.push({ step: 'Nothing committed', status: 'skipped', detail: `Plan stays at ${head.id} until you choose` });
         st.note('validate_plan', 'warn', `No plan passed: ${proposal.plan.violations.map((v) => v.code).join(', ')}`);
         st.note('suggest_relaxations', 'ok', `${proposal.options.length} verified option(s): ${proposal.options.map((o) => o.label).join(' | ') || 'none'}`);
         next = recordRejected(session, proposal, { now });
@@ -126,6 +182,9 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
     case 'undo': {
       const res = st.run('undo_revision', () => undoLast(session), (r) => (r.ok ? `Removed ${r.removed.id}` : r.message));
       next = res.session;
+      trace.push(res.ok
+        ? { step: 'Revision undone', status: 'ok', detail: `Removed ${res.removed.id} (${res.removed.label}); current plan is ${currentRevision(next).id}` }
+        : { step: 'Nothing to undo', status: 'warn', detail: res.message });
       reply = res.ok
         ? { tone: 'done', text: `Undone: ${res.removed.label}. Back to revision ${currentRevision(next).id}.` }
         : { tone: 'failure', text: res.message };
@@ -134,17 +193,20 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
     case 'restore': {
       const res = st.run('restore_baseline', () => restoreBaseline(session), (r) => `Removed ${r.removedCount} revision(s)`);
       next = res.session;
+      trace.push({ step: 'Original plan restored', status: 'ok', detail: `${res.removedCount} revision(s) removed; history keeps them marked as undone` });
       reply = { tone: 'done', text: `Restored the original plan (${res.removedCount} revision${res.removedCount === 1 ? '' : 's'} removed; the history log keeps them marked as undone).` };
       break;
     }
     case 'advance': {
       next = st.run('advance_clock', () => advanceClock(session, parsed.minutes), (s) => `Clock → ${formatClock(currentRevision(s).state.scenario, s.nowMin)}`);
       const s = currentRevision(next).state.scenario;
+      trace.push({ step: 'Clock advanced', status: 'ok', detail: `${formatClock(s, session.nowMin)} → ${formatClock(s, next.nowMin)}; work started by then freezes on the next change` });
       reply = { tone: 'done', text: `Simulation clock is now ${formatClock(s, next.nowMin)}. Tasks that have started will be treated as fixed when the next change arrives.` };
       break;
     }
     case 'status':
       st.note('inspect_session', 'ok', `Revision ${currentRevision(session).id}`);
+      trace.push({ step: 'Plan inspected', status: 'ok', detail: `Answer read from validated revision ${currentRevision(session).id}` });
       reply = { tone: 'done', text: statusAnswer(session) };
       break;
     case 'help':
@@ -160,8 +222,8 @@ export function runAgentTurn(session, input, parsed, { now = Date.now() } = {}) 
   const turn = { at: now, input, source, parser: parsed.parser, intent: parsed.intent, steps: st.steps, tone: reply.tone };
   next = appendLog(next, 'activity', turn);
   next = appendLog(next, 'conversation', { role: 'user', text: input, source, at: now });
-  next = appendLog(next, 'conversation', { role: 'assistant', text: reply.text, tone: reply.tone, at: now });
-  return { session: next, reply, steps: st.steps, proposal };
+  next = appendLog(next, 'conversation', { role: 'assistant', text: reply.text, tone: reply.tone, trace, at: now });
+  return { session: next, reply, steps: st.steps, trace, proposal };
 }
 
 /** Applies a user-chosen relaxation option: original shocks + relaxation, re-planned and committed. */
@@ -176,11 +238,19 @@ export function applyOption(session, proposal, option, { now = Date.now() } = {}
     return { session: appendLog(session, 'conversation', { role: 'assistant', text: reply.text, tone: reply.tone, at: now }), reply, steps: st.steps };
   }
   st.note('validate_plan', 'ok', `validatePlan(): ${next.plan.validation.checks} checks, 0 violations`);
+  const trace = [
+    { step: 'Option confirmed by you', status: 'ok', detail: option.label },
+    { step: 'Constraints changed', status: 'ok', detail: next.descriptions.join('; ') },
+    schedulingStep(next.plan),
+    { step: 'Validation passed', status: 'ok', detail: `validatePlan(): ${next.plan.validation.checks} independent checks, 0 violations` },
+    diffStep(next.diff),
+  ];
   let committed = commitProposal(session, next, { now });
+  trace.push({ step: 'Plan committed', status: 'ok', detail: `Revision ${currentRevision(committed).id} saved` });
   st.note('commit_revision', 'ok', `Committed ${currentRevision(committed).id}`);
   const reply = { tone: 'done', text: explainCommit(next) };
   committed = appendLog(committed, 'activity', { at: now, input: `Option: ${option.label}`, source: 'confirm', parser: 'none', intent: 'option', steps: st.steps, tone: 'done' });
   committed = appendLog(committed, 'conversation', { role: 'user', text: `Apply: ${option.label}`, source: 'confirm', at: now });
-  committed = appendLog(committed, 'conversation', { role: 'assistant', text: reply.text, tone: reply.tone, at: now });
-  return { session: committed, reply, steps: st.steps, proposal: next };
+  committed = appendLog(committed, 'conversation', { role: 'assistant', text: reply.text, tone: reply.tone, trace, at: now });
+  return { session: committed, reply, steps: st.steps, trace, proposal: next };
 }

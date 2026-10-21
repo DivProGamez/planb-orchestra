@@ -18,6 +18,20 @@ function preferFrom(plan) {
   return Object.fromEntries((plan?.scheduled || []).map((st) => [st.taskId, st.variantId]));
 }
 
+/**
+ * Previous variant choices are kept for stability, except where a restored resource or person
+ * makes the original version possible again — then the original is tried first.
+ */
+function preferAfter(plan, shocks, state) {
+  const prefer = preferFrom(plan);
+  const restoredRes = new Set(shocks.filter((sh) => sh.type === 'resource_restored').map((sh) => sh.payload.resourceId));
+  const returned = new Set(shocks.filter((sh) => sh.type === 'person_available').map((sh) => sh.payload.personId));
+  for (const t of state.scenario.tasks) {
+    if (t.resources.some((r) => restoredRes.has(r)) || t.eligiblePeople.some((p) => returned.has(p))) delete prefer[t.id];
+  }
+  return prefer;
+}
+
 /** Applies user overrides from the setup form (bounded) to a scenario clone. */
 export function applyOverrides(scenario, overrides = {}) {
   const s = clone(scenario);
@@ -71,7 +85,7 @@ export function proposeShocks(session, rawShocks, { source = 'typed' } = {}) {
   const descriptions = describeShocks(shocks, frozen);
   let nextState = frozen;
   for (const sh of shocks) nextState = applyShockToState(nextState, sh, atMin);
-  const plan = planSchedule(nextState, { preferVariants: preferFrom(head.plan) });
+  const plan = planSchedule(nextState, { preferVariants: preferAfter(head.plan, shocks, nextState) });
   const base = { ok: true, shocks, descriptions, atMin, state: nextState, plan, source };
   if (!plan.feasible) {
     return { ...base, feasible: false, options: suggestRelaxations(session, frozen, shocks, nextState, plan) };
@@ -165,7 +179,7 @@ export function suggestRelaxations(session, frozen, shocks, nextState, failedPla
   const prefer = preferFrom(currentRevision(session).plan);
   const options = [];
   const codes = new Set(failedPlan.violations.map((v) => v.code));
-  const timeRelated = ['DEADLINE_EXCEEDED', 'NO_FEASIBLE_SLOT', 'CAPACITY_EXCEEDED', 'NO_FEASIBLE_PLAN'].some((c) => codes.has(c));
+  const timeRelated = ['DEADLINE_EXCEEDED', 'NO_FEASIBLE_SLOT', 'CAPACITY_EXCEEDED', 'NO_ELIGIBLE_PERSON', 'NO_FEASIBLE_PLAN'].some((c) => codes.has(c));
   const budgetRelated = codes.has('BUDGET_EXCEEDED');
 
   const describe = (plan) => `Finishes ${formatClock(s, plan.endMin)}, total $${plan.totalCost}`;

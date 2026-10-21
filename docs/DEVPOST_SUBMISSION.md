@@ -19,6 +19,12 @@ When something changes — "Guests are arriving an hour early and the oven broke
 started, recomputes the remaining tasks, animates a before/after change map, and explains each moved, reassigned,
 shortened, replaced or dropped task with reason codes tied to the constraint that changed.
 
+People describe changes their own way, so the agent accepts plain sentences and several changes at once —
+"Alex has to leave at 5 PM", "Leila is running 10 minutes late", "the car is in the shop", "the oven works again",
+"we only have $60 left" — as well as quick commands and a structured form. Each reply lists the agent's steps from
+real engine data: intent detected, constraints changed, scheduling performed, validation passed, differences
+explained, plan committed.
+
 If a request is impossible (for example, a budget below what has already been spent plus what is still required),
 it says so, shows the hard constraints that conflict, and offers options the planner has verified will work
 (raise the budget to the minimum, move the deadline, or skip a non-essential task). Nothing changes until the user
@@ -30,13 +36,18 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
   first keeps previous choices, then compresses tasks (never below their minimum), then tries explicitly listed
   alternatives, then drops optional tasks — required tasks are never dropped silently.
 - **Independent validator** (`validatePlan`) re-derives every rule from scratch; a plan that fails it is never shown as success.
-- **Agent loop with an activity log:** parse → validate the change against an allowlisted schema → plan → validate →
-  explain from the actual diff → commit, or ask the user to choose.
+- **Agent loop with visible steps:** parse → validate the change against an allowlisted schema → plan → validate →
+  explain from the actual diff → commit, or ask the user to choose. Each reply shows these steps with their real
+  numbers (configurations searched, checks passed, tasks changed), plus a raw activity log.
+- **Change types:** deadline earlier/later, person unavailable now or from a time, person late, person back,
+  equipment down or fixed, budget cut or raise, task overrun, skip a task — validated by one shared schema.
 - **Simulated Alexa+-style UI:** conversation dock, quick commands, swimlane chart with animated transitions and
   previous-position outlines, KPI strip, "Why it changed" panel and session timeline.
-- **Natural-language input:** a clearly labelled *limited local rule parser* (not an LLM). [TODO — keep only if you
-  configure and verify it: an optional server-side adapter can parse free text with Claude via the Anthropic SDK; its
-  output is re-validated against the same schema and falls back to the local parser on any failure.]
+- **Natural-language input:** a clearly labelled *limited local rule parser* (not an LLM), covered by a test corpus of
+  34 change phrasings across the three scenarios plus 7 non-change/negative cases. An optional server-side adapter can use Claude through the Anthropic SDK
+  (key read only on the server); its output is re-validated against the same schema and any failure falls back to
+  the local parser. [TODO — the adapter is tested offline with a stub client only; mention live LLM parsing only if
+  you configure a key and verify it yourself.]
 - Node.js + Express serve the static app and the optional intent endpoint.
 
 ## Challenges we ran into
@@ -48,14 +59,20 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
   because a required task cannot hard-depend on an optional one. We added ordering-only ("soft") dependencies.
 - **Honest infeasibility.** Distinguishing what is mathematically proven (budget floor, minimum-duration critical
   path, person-minute capacity) from "the bounded search found no slot" required separate labels in the UI.
+- **Tests found a scenario with no way out.** With the oven broken, the birthday party became impossible with zero
+  options: the pizzas had no listed fallback and the final check hard-depended on them. We added an explicit
+  "order pizza delivery" fallback and made that dependency ordering-only, so the planner can now offer real choices.
+- **"Back to the original recipe" was labelled "alternative used"** when the oven came back; a scenario test caught
+  it and the diff now uses a separate *Original version* reason.
 - **An impossible deadline leaked an internal schema error** to the user during testing; changes that would put the
   deadline before the current time are now rejected in plain English, with a regression test.
 
 ## Accomplishments that we're proud of
 
-- 31 automated tests including a randomized audit: 300 random shock sequences (476 feasible replans, 132 infeasible
-  outcomes) checked by the validator and by an independent minute-by-minute brute-force checker — 0 violations.
-- 15/15 browser smoke checks in real Chrome at 1440×900, 1280×720 and 1024×768, with no console errors.
+- 80 automated tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
+  infeasible outcomes in the latest run) checked by the validator and an independent minute-by-minute brute-force
+  checker — 0 violations — and story tests for all three scenarios.
+- 17/17 browser smoke checks in real Chrome at 1440×900, 1280×720, 1024×768, 768×1024 and 390×844, with no console errors.
 - Every explanation is generated from reason codes and plan data; nothing is free-text invention.
 
 ## What we learned

@@ -1,7 +1,7 @@
 {
-  "date": "2026-10-21T09:58:41.492Z",
+  "date": "2026-10-21T10:40:49.102Z",
   "browser": "chrome.exe",
-  "passed": 15,
+  "passed": 17,
   "failed": 0,
   "results": [
     {
@@ -41,6 +41,10 @@
       "status": "PASS"
     },
     {
+      "name": "free-form requests: equipment breaks, then works again (original version restored)",
+      "status": "PASS"
+    },
+    {
       "name": "keyboard: Escape dismisses the infeasible panel",
       "status": "PASS"
     },
@@ -58,6 +62,10 @@
     },
     {
       "name": "API outage does not blank the app (falls back to local parser)",
+      "status": "PASS"
+    },
+    {
+      "name": "phone 390×844 and tablet 768×1024: landing and setup fit without horizontal scroll",
       "status": "PASS"
     },
     {

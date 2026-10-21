@@ -301,6 +301,27 @@ function diagnose(ctx, info) {
     });
   }
 
+  // No eligible person is available anywhere in a required task's feasible window.
+  for (const t of required) {
+    const variants = info.choice.get(t.id) || [];
+    if (!variants.length || variants.some((v) => v.eligiblePeople.length === 0)) continue;
+    const earliestStart = lower(t) - Math.min(...variants.map(minDurationOf));
+    const limit = Math.min(s.deadlineMin, t.latestEndMin ?? Infinity);
+    const anyone = variants.some((v) => v.eligiblePeople.some((pid) => {
+      const p = ctx.peopleById.get(pid);
+      return p && Math.min(p.availableTo, limit) - Math.max(p.availableFrom, earliestStart) >= minDurationOf(v);
+    }));
+    if (anyone) continue;
+    const people = [...new Set(variants.flatMap((v) => v.eligiblePeople))].map((pid) => {
+      const p = ctx.peopleById.get(pid);
+      return p.availableTo <= Math.max(p.availableFrom, ctx.nowMin) ? `${p.name} unavailable` : `${p.name} ${clock(p.availableFrom)}–${clock(p.availableTo)}`;
+    });
+    violations.push({
+      code: 'NO_ELIGIBLE_PERSON', proof: 'proven', taskId: t.id,
+      message: `"${t.title}" cannot start before ${clock(earliestStart)}, and nobody who can do it is available from then until ${clock(limit)} (${people.join(', ')})`,
+    });
+  }
+
   // Person-minutes bound for required, hands-on work.
   const needMin = required.reduce((sum, t) => {
     const variants = (info.choice.get(t.id) || []).filter((v) => v.eligiblePeople.length > 0);
@@ -322,8 +343,16 @@ function diagnose(ctx, info) {
   if (violations.length === 0 && info.lastFailure) {
     const f = info.lastFailure;
     const task = ctx.taskById.get(f.taskId);
+    // State each eligible person's real window so the user sees why nobody fits.
     const who = f.variant?.eligiblePeople?.length
-      ? f.variant.eligiblePeople.map((pid) => personName(s, pid)).join(', ')
+      ? f.variant.eligiblePeople.map((pid) => {
+        const p = ctx.peopleById.get(pid);
+        if (!p) return pid;
+        if (p.availableTo <= Math.max(p.availableFrom, ctx.nowMin)) return `${p.name} unavailable`;
+        if (p.availableTo < f.est + f.durationMin) return `${p.name} only until ${clock(p.availableTo)}`;
+        if (p.availableFrom > f.est) return `${p.name} from ${clock(p.availableFrom)}`;
+        return `${p.name} busy`;
+      }).join(', ')
       : 'hands-free';
     const what = f.variant?.resources?.length ? ` using ${f.variant.resources.map((r) => resourceName(s, r)).join(', ')}` : '';
     violations.push({
