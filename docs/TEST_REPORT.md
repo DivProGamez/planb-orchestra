@@ -1,6 +1,6 @@
 # Test report
 
-Generated from real CLI runs on 2026-10-21T14:27Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
+Generated from real CLI runs on 2026-10-21T14:39Z (Windows 11, Node v24.11.0). Nothing below is hand-written as a result.
 
 ## `npm test` (node:test)
 
@@ -17,7 +17,8 @@ scenario stories (all three), persistence, integration + server, offline LLM ada
 ## `npm run test:smoke` (playwright-core driving installed Chrome)
 
 ```
-PASS  splash shows only real start-up work and reports the validated checks
+PASS  splash walks through the real start-up steps (about 2.4 s) and reports the validated checks
+PASS  every sidebar icon opens its screen before a plan exists (with a build action)
 PASS  home dashboard: scenarios, live preview reacting to constraints, honest labels, no scroll
 PASS  build a validated baseline plan from the hero action
 PASS  disruption dialog: describe → review (dry run) → confirm → animated Plan B
@@ -34,13 +35,14 @@ PASS  free-form: oven breaks, then is fixed (original version restored); leave-a
 PASS  keyboard: D opens the dialog, Escape closes it and dismisses the crisis panel
 PASS  settings & transparency shows parser status, engine facts and preferences
 PASS  1920×1080: every screen fits without page scrolling
+PASS  1500×900 (three-column settings): nothing sticks out of its card on any screen
 PASS  1280×720: restored session fits, compact disclosures visible
 PASS  1024×768 tablet: stacked layout without horizontal page overflow
 PASS  other scenarios build feasible baselines; outing replans a partner leaving
 PASS  API outage does not blank the app (falls back to the local parser)
 PASS  phone 390×844 and tablet 768×1024: home has no horizontal scroll
 PASS  no console errors during the run
-Smoke: 23 passed, 0 failed. Screenshots in evidence/
+Smoke: 25 passed, 0 failed. Screenshots in evidence/
 ```
 
 Screenshots from this run are in `evidence/`; machine-readable results in `evidence/smoke-results.json`.

@@ -718,3 +718,18 @@ table.tasks { width: 100%; min-width: 640px; border-collapse: collapse; font-siz
 .how-step strong { font-family: var(--display); font-size: 14.5px; }
 .how-n { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: var(--primary); background: var(--primary-dim); border: 1px solid rgba(192, 193, 255, 0.3); }
 @media (min-height: 1000px) and (min-width: 1101px) { .how { display: grid; } }
+
+/* Plan-based screens opened before a plan exists. */
+.nav-item.needs-plan { color: var(--muted); }
+.nav-item.needs-plan .ico { opacity: 0.7; }
+.needs-card { display: grid; justify-items: center; text-align: center; gap: 10px; padding: 40px 24px; max-width: 720px; width: 100%; margin: 24px auto 0; }
+.needs-icon { width: 72px; height: 72px; border-radius: 20px; display: grid; place-items: center; color: var(--primary); background: var(--primary-dim); border: 1px solid rgba(192, 193, 255, 0.3); margin-bottom: 6px; }
+.needs-card h2 { font-size: 20px; }
+.needs-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+
+/* Card headers wrap instead of letting a pill or tag spill past the card edge. */
+.card-head { flex-wrap: wrap; row-gap: 8px; }
+.card-head h2 { min-width: 0; }
+.card-head .pill, .card-head .tag { max-width: 100%; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.card { overflow: hidden; }
+.hero, .modal { overflow: hidden; }

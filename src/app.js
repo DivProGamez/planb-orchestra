@@ -11,7 +11,7 @@ import { saveState, loadState, clearState, memoryStorage } from './persistence.j
 import { axisFor, fitRowHeight, manualParam, esc } from './components.js';
 import {
   VIEWS, renderSidebar, renderTopbar, renderHome, renderHomePreview, renderWorkspace, renderAssistantView,
-  renderRepair, renderCompare, renderHistory, renderSettings, renderDisruptionModal,
+  renderRepair, renderCompare, renderHistory, renderSettings, renderDisruptionModal, renderNeedsPlan,
 } from './views.js';
 
 const root = document.getElementById('app');
@@ -264,7 +264,7 @@ function chooseOption(index) {
   render();
 }
 
-function buildPlan() {
+function buildPlan(targetView = 'workspace') {
   const scenario = getScenario(ui.home.scenarioId);
   const res = createSession(scenario, { overrides: overridesFor(scenario, ui.home.form), now: Date.now() });
   if (!res.ok) {
@@ -273,7 +273,7 @@ function buildPlan() {
     return;
   }
   Object.assign(ui, {
-    session: res.session, view: 'workspace', selectedTaskId: null, proposal: null, pending: null, status: 'idle',
+    session: res.session, view: targetView, selectedTaskId: null, proposal: null, pending: null, status: 'idle',
     bannerRevisionId: null, notice: '', compareA: null, compareB: null, historyIndex: null,
   });
   ui.home.error = '';
@@ -322,7 +322,7 @@ function context() {
 }
 
 function viewHtml(ctx) {
-  if (!ctx.session && VIEWS.find((v) => v.id === ui.view)?.needsSession) ui.view = 'home';
+  if (!ctx.session && VIEWS.find((v) => v.id === ui.view)?.needsSession) return renderNeedsPlan({ view: ui.view, scenario: getScenario(ui.home.scenarioId) });
   switch (ui.view) {
     case 'workspace': return renderWorkspace(ctx);
     case 'assistant': return renderAssistantView(ctx);
@@ -446,7 +446,7 @@ function playTransition() {
 
 function navigate(view) {
   const def = VIEWS.find((v) => v.id === view);
-  if (!def || (def.needsSession && !ui.session)) return;
+  if (!def) return;
   ui.view = view;
   if (view !== 'workspace') ui.animateRevisionId = null;
   persist();
@@ -466,6 +466,7 @@ root.addEventListener('click', (ev) => {
       break;
     case 'home-tab': ui.home.tab = el.dataset.tab; render(); break;
     case 'new-session': newSession(); break;
+    case 'build-from': buildPlan(el.dataset.view === 'compare' || el.dataset.view === 'history' || el.dataset.view === 'repair' ? 'workspace' : el.dataset.view); break;
     case 'quick': requestChange(el.dataset.text, 'quick', 'chat'); break;
     case 'quick-review': ui.modal = { open: true, step: 'describe', draft: el.dataset.text }; requestChange(el.dataset.text, 'quick', 'modal'); break;
     case 'open-disruption': ui.pending = null; ui.modal = { open: true, step: 'describe', draft: '' }; render(); break;
@@ -592,9 +593,21 @@ function splashStep(fraction, text) {
   if (status) status.textContent = text;
 }
 
+const SPLASH_MIN_MS = 2400; // minimum time on screen, so the start-up steps can be read
+
 async function boot() {
   const t0 = performance.now();
-  splashStep(0.2, `Validating ${SCENARIOS.length} household scenarios…`);
+  const minMs = reduceMotion() ? 700 : SPLASH_MIN_MS;
+  const pace = async (fraction) => {
+    const target = minMs * fraction;
+    const wait = target - (performance.now() - t0);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  };
+  splashStep(0.12, 'Loading planning engine…');
+  await pace(0.2);
+  splashStep(0.35, `Validating ${SCENARIOS.length} household scenarios…`);
+  // Only the planning work itself is timed; the pacing waits are not counted.
+  const v0 = performance.now();
   let checks = 0;
   for (const s of SCENARIOS) {
     if (validateScenario(s).ok) {
@@ -602,15 +615,21 @@ async function boot() {
       if (res.ok) checks += res.session.revisions[0].plan.validation.checks;
     }
   }
-  splashStep(0.55, 'Checking assistant parser…');
+  let workMs = performance.now() - v0;
+  await pace(0.45);
+  splashStep(0.6, 'Checking assistant parser…');
   await detectParser(1500);
-  splashStep(0.8, 'Restoring your session…');
+  await pace(0.68);
+  splashStep(0.82, 'Restoring your session…');
+  const r0 = performance.now();
   const resumed = restore();
   computePreview();
-  const ms = Math.round(performance.now() - t0);
-  ui.boot.summary = `${checks} baseline checks passed across ${SCENARIOS.length} scenarios in ${ms} ms${resumed ? ' · session restored' : ''}`;
+  workMs += performance.now() - r0;
+  await pace(0.86);
+  ui.boot.summary = `${checks} baseline checks passed across ${SCENARIOS.length} scenarios in ${Math.round(workMs)} ms${resumed ? ' · session restored' : ''}`;
   splashStep(1, `Ready — ${checks} baseline checks passed`);
   root.dataset.boot = ui.boot.summary;
+  await pace(1);
   render();
   const splash = document.getElementById('splash');
   if (splash) {

@@ -28,8 +28,8 @@ export function renderSidebar({ view, session, head }) {
   const sections = [...new Set(VIEWS.map((v) => v.section))].map((section) => `
     <div class="nav-section">${esc(section)}</div>
     ${VIEWS.filter((v) => v.section === section).map((v) => {
-      const disabled = v.needsSession && !session;
-      return `<button class="nav-item ${view === v.id ? 'is-active' : ''}" data-action="nav" data-view="${v.id}" ${disabled ? 'disabled title="Build a plan first"' : ''} ${view === v.id ? 'aria-current="page"' : ''}>
+      const waiting = v.needsSession && !session;
+      return `<button class="nav-item ${view === v.id ? 'is-active' : ''} ${waiting ? 'needs-plan' : ''}" data-action="nav" data-view="${v.id}" ${waiting ? 'title="Opens once a plan is built — you can build it from there"' : ''} ${view === v.id ? 'aria-current="page"' : ''}>
         ${icon(v.icon, 18)}<span>${esc(v.label)}</span>${v.id === 'history' && session ? `<span class="nav-count">${session.revisions.length}</span>` : ''}</button>`;
     }).join('')}`).join('');
   const s = head?.state.scenario;
@@ -92,6 +92,24 @@ function pageHead({ eyebrow, title, sub, actions = '' }) {
       ${sub ? `<p class="ph-sub">${sub}</p>` : ''}
     </div>
     <div class="ph-actions">${actions}</div>
+  </div>`;
+}
+
+/** Shown when a plan-based screen is opened before any plan exists. */
+export function renderNeedsPlan({ view, scenario }) {
+  const def = VIEWS.find((v) => v.id === view);
+  return `
+  <div class="view view-needs" id="main">
+    ${pageHead({ eyebrow: 'No active plan yet', title: esc(def?.label || ''), sub: 'This screen works on a validated plan. Build one first — it takes a moment and nothing is invented.' })}
+    <section class="card needs-card">
+      <span class="needs-icon">${icon(def?.icon || 'workspace', 34)}</span>
+      <h2>Build a plan to open ${esc(def?.label || 'this screen')}</h2>
+      <p class="muted">Selected scenario: <strong>${esc(scenario.name)}</strong> — ${esc(scenario.tagline)}</p>
+      <div class="needs-actions">
+        <button class="btn btn-primary btn-lg" data-action="build-from" data-view="${esc(view)}">${icon('play', 16)}<span>Build feasible plan</span></button>
+        <button class="btn btn-quiet btn-lg" data-action="nav" data-view="home">${icon('home', 16)}<span>Choose another scenario</span></button>
+      </div>
+    </section>
   </div>`;
 }
 
@@ -626,7 +644,10 @@ export function renderCompare(ctx) {
   const s = B.state.scenario;
   const clock = (m) => formatClock(s, m);
   if (revs.length < 2) {
-    return `<div class="view view-compare" id="main">${pageHead({ eyebrow: 'Timeline compare', title: 'Before / After', sub: 'Make a change first — then the original plan and Plan B appear side by side here.' })}</div>`;
+    return `<div class="view view-compare" id="main">${pageHead({ eyebrow: 'Timeline compare', title: 'Before / After', sub: 'Make a change first — then the original plan and Plan B appear side by side here.' })}
+      <section class="card needs-card"><span class="needs-icon">${icon('compare', 34)}</span><h2>Nothing to compare yet</h2>
+        <p class="muted">The plan has not changed since it was built.</p>
+        <div class="needs-actions"><button class="btn btn-danger btn-lg" data-action="open-disruption">${icon('alert', 16)}<span>Simulate disruption</span></button></div></section></div>`;
   }
   // Diff between any two revisions: reuse the stored diff for adjacent pairs, otherwise compare snapshots.
   const entries = (bIndex - aIndex === 1 && B.diff) ? B.diff.entries : B.state.scenario.tasks.map((t) => {

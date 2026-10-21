@@ -1,11 +1,15 @@
 {
-  "date": "2026-10-21T14:28:19.785Z",
+  "date": "2026-10-21T14:39:42.194Z",
   "browser": "chrome.exe",
-  "passed": 23,
+  "passed": 25,
   "failed": 0,
   "results": [
     {
-      "name": "splash shows only real start-up work and reports the validated checks",
+      "name": "splash walks through the real start-up steps (about 2.4 s) and reports the validated checks",
+      "status": "PASS"
+    },
+    {
+      "name": "every sidebar icon opens its screen before a plan exists (with a build action)",
       "status": "PASS"
     },
     {
@@ -70,6 +74,10 @@
     },
     {
       "name": "1920×1080: every screen fits without page scrolling",
+      "status": "PASS"
+    },
+    {
+      "name": "1500×900 (three-column settings): nothing sticks out of its card on any screen",
       "status": "PASS"
     },
     {

@@ -76,6 +76,11 @@ const revs = (p) => p.evaluate(() => Number(document.getElementById('app').datas
 const waitRevs = (p, n) => p.waitForFunction((x) => document.getElementById('app').dataset.revisions === String(x), n, { timeout: 8000 });
 const pageScroll = (p) => p.evaluate(() => ({ x: document.documentElement.scrollWidth - innerWidth, y: document.documentElement.scrollHeight - innerHeight }));
 const nav = async (p, view) => { await p.click(`.nav-item[data-view="${view}"]`); await p.waitForFunction((v) => document.getElementById('app').dataset.view === v, view); await p.waitForTimeout(350); };
+/** Labels of pills/tags/buttons that stick out of their card (should be none). */
+const spills = (p) => p.evaluate(() => [...document.querySelectorAll('.card')].flatMap((card) => {
+  const c = card.getBoundingClientRect();
+  return [...card.querySelectorAll('.pill, .tag, .btn')].filter((el) => { const r = el.getBoundingClientRect(); return r.width && (r.right > c.right + 1 || r.left < c.left - 1); }).map((el) => el.textContent.trim().slice(0, 40));
+}));
 const settle = (p) => p.waitForTimeout(1500); // transitions are 260–560 ms; staggered items finish within ~1.4 s
 
 /** Types into the assistant; reviews and confirms the change when a review card appears. */
@@ -98,16 +103,29 @@ try {
   await ready(page);
   await page.evaluate(() => localStorage.clear());
 
-  await check('splash shows only real start-up work and reports the validated checks', async () => {
+  await check('splash walks through the real start-up steps (about 2.4 s) and reports the validated checks', async () => {
     const t0 = Date.now();
     await page.reload();
     await ready(page);
     const elapsed = Date.now() - t0;
     const lines = await page.evaluate(() => window.__splash);
     expect(lines.some((l) => /^Ready — \d+ baseline checks passed/.test(l)), `splash lines: ${lines.join(' | ')}`);
-    expect(elapsed < 3000, `splash took ${elapsed} ms`);
+    expect(elapsed >= 2000 && elapsed < 4000, `splash took ${elapsed} ms (expected about 2.4 s)`);
+    for (const step of ['Loading planning engine', 'Validating 3 household scenarios', 'Checking assistant parser', 'Restoring your session']) {
+      expect(lines.some((l) => l.startsWith(step)), `splash step missing: ${step}`);
+    }
     const boot = await page.evaluate(() => document.getElementById('app').dataset.boot);
     expect(/\d+ baseline checks passed across 3 scenarios in \d+ ms/.test(boot), `boot summary: ${boot}`);
+  });
+
+  await check('every sidebar icon opens its screen before a plan exists (with a build action)', async () => {
+    for (const view of ['workspace', 'assistant', 'repair', 'compare', 'history', 'settings']) {
+      await page.click(`.nav-item[data-view="${view}"] svg`);
+      await page.waitForFunction((v) => document.getElementById('app').dataset.view === v, view);
+      if (view !== 'settings') expect(await page.locator('.view-needs [data-action="build-from"]').count() === 1, `${view}: no build action`);
+    }
+    await page.click('.nav-item[data-view="home"] svg');
+    await page.waitForSelector('.view-home');
   });
 
   await check('home dashboard: scenarios, live preview reacting to constraints, honest labels, no scroll', async () => {
@@ -283,6 +301,8 @@ try {
     const text = await page.locator('.view-settings').textContent();
     expect(/limited local rule parser/.test(text) && /baseline checks passed/.test(text) && /8,000 schedule attempts/.test(text), 'settings facts missing');
     expect(await page.locator('#pref-confirm').isChecked(), 'review preference should default to on');
+    const spill = await spills(page);
+    expect(spill.length === 0, `elements outside their card: ${spill.join(' | ')}`);
     await shot(page, '11-settings-1440x900');
   });
 
@@ -295,8 +315,21 @@ try {
       await big.waitForTimeout(300);
       const sc = await pageScroll(big);
       expect(sc.x <= 0 && sc.y <= 0, `${view} scrolls at 1920×1080 (${sc.x}, ${sc.y})`);
+      const spill = await spills(big);
+      expect(spill.length === 0, `${view}: elements outside their card: ${spill.join(' | ')}`);
       await shot(big, `20-${view}-1920x1080`);
     }
+  });
+
+  await check('1500×900 (three-column settings): nothing sticks out of its card on any screen', async () => {
+    await big.setViewportSize({ width: 1500, height: 900 });
+    for (const view of ['settings', 'workspace', 'assistant', 'repair', 'compare', 'history', 'home']) {
+      await nav(big, view);
+      const spill = await spills(big);
+      expect(spill.length === 0, `${view}: elements outside their card: ${spill.join(' | ')}`);
+    }
+    await nav(big, 'settings');
+    await shot(big, '21-settings-1500x900');
   });
 
   const small = await newPage(1280, 720);
@@ -325,7 +358,13 @@ try {
       await nav(small, 'settings');
       await small.click('[data-action="new-session"]');
       await small.click(`.tile[data-id="${id}"]`);
-      await small.click('button[form="setup-form"]');
+      if (id === 'weekend-outing') {
+        // Build from the empty state of a plan-based screen.
+        await nav(small, 'workspace');
+        await small.click('[data-action="build-from"]');
+      } else {
+        await small.click('button[form="setup-form"]');
+      }
       await small.waitForSelector('.workspace');
       expect(await small.locator('.kpi-ok').count() === 1, `${id} not validated`);
     }
