@@ -1,6 +1,6 @@
 # Devpost submission draft
 
-Final text for the submission form. The only open item is the public video URL. Every figure below is in `docs/TEST_REPORT.md`.
+Final text for the submission form. Every figure below is in `docs/TEST_REPORT.md`.
 
 **Project title:** PlanB Orchestra — The Assistant That Rebuilds Your Plan
 **Tagline:** An Alexa+-style planning agent that recalculates household plans when life changes — and proves every decision.
@@ -108,7 +108,7 @@ JavaScript, Node.js, Express, HTML/CSS, Web Audio API, Gamepad API, node:test, P
 
 - Repository: https://github.com/DivProGamez/planb-orchestra (MIT license)
 - Hosted demo: none (runs locally: `npm install && npm start`)
-- Video: [TODO public YouTube/Vimeo URL — `release/video/PlanB_Orchestra_Final_Demo.mp4`, 2:46]
+- Video: https://youtu.be/42Xxeb36k54 (2:46)
 
 ## Transparency
 
