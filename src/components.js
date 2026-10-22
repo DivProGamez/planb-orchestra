@@ -104,6 +104,8 @@ const SIZES = {
   full: { row: 58, bar: 42, res: 30, label: 176 },
   compact: { row: 38, bar: 28, res: 22, label: 104 },
 };
+/** Minimum horizontal scale: below it the chart scrolls instead of crushing short tasks. */
+const MIN_PX_PER_MIN = { full: 2.6, compact: 1.5 };
 /** Height of the time axis plus the marker-label strip under it. */
 const AXIS_H = 54;
 
@@ -244,7 +246,7 @@ export function renderTimeline(opts) {
     return `<button class="${cls}" data-action="select-task" data-task="${esc(st.taskId)}" style="--lane:${color};left:${box.left}%;width:${box.width}%;top:${box.top}px;height:${size.bar}px"
       ${from ? `data-from-left="${from.left}" data-from-width="${from.width}" data-from-top="${from.top}"` : ''}
       aria-label="${esc(label)}" title="${esc(label)}${st.actualCost ? ` · $${st.actualCost}` : ''}">
-      ${chip}<span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span><span class="bar-short" aria-hidden="true">${esc(shortLabel(st.title, st.variantId === 'base' ? task?.keywords?.[0] : null))}</span>
+      ${chip}<span class="bar-title">${status === 'done' ? '✓ ' : ''}${esc(st.title)}</span><span class="bar-short" aria-hidden="true">${esc(shortLabel(st.title, st.variantId === 'base' ? task?.keywords?.[0] : null))}</span><span class="bar-initial" aria-hidden="true">${esc(shortLabel(st.title, st.variantId === 'base' ? task?.keywords?.[0] : null).slice(0, 2))}</span>
       ${opts.compact ? '' : `<span class="bar-meta">${esc(clock(st.startMin))} · ${st.durationMin}m${st.durationMin < st.fullDurationMin ? ` (was ${st.fullDurationMin})` : ''}${st.variantId !== 'base' ? ' · alt' : ''}</span>`}
     </button>`;
   }).join('');
@@ -275,7 +277,7 @@ export function renderTimeline(opts) {
   ].join('');
 
   return `
-  <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${[...changed.values()].some((e) => e.kind !== 'Unchanged') ? 'has-changes' : ''} ${selectedTaskId && plan.scheduled.some((st) => st.taskId === selectedTaskId) ? 'has-selection' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px">
+  <figure class="tl ${opts.compact ? 'tl-compact' : ''} ${[...changed.values()].some((e) => e.kind !== 'Unchanged') ? 'has-changes' : ''} ${selectedTaskId && plan.scheduled.some((st) => st.taskId === selectedTaskId) ? 'has-selection' : ''} ${size.row >= 70 ? 'tall' : ''} ${!opts.compact && size.row < 48 ? 'short' : ''}" ${id ? `id="${esc(id)}"` : ''} aria-label="${esc(opts.label || 'Plan timeline')}" style="--label-w:${size.label}px;--tl-min:${Math.round(size.label + axis.span * (opts.compact ? MIN_PX_PER_MIN.compact : MIN_PX_PER_MIN.full))}px">
     <div class="tl-grid">
       <div class="tl-labels" style="height:${layout.height + AXIS_H}px"><div class="tl-corner">${opts.compact ? '' : 'People &amp; equipment'}</div><div class="tl-labels-body" style="height:${layout.height}px">${labels}</div></div>
       <div class="tl-main">

@@ -6,17 +6,20 @@ Checked = verified in this repository. Unchecked = not done or needs the operato
 ## Build (verified)
 
 - [x] Running app with plan → shock → replan → diff → second shock → undo → reload → infeasible flow (smoke test, `docs/TEST_REPORT.md`).
-- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` (80 unit/integration/scenario/corpus/adapter/audit tests, 26 browser journey checks, 13 release QA checks, populated-screen audit with 31 screenshots).
+- [x] Tests actually executed and copied to `docs/TEST_REPORT.md` from one run: 92 unit tests, 26 journey checks, 14 release QA checks, 14 navigation checks, 14 chat checks, populated-screen audit (31 screenshots), responsive audit (10 viewports), scroll audit (every scroll container, arrows only).
+- [x] Production build verified offline (`npm run build`, `npm run verify:dist`).
+- [x] Mouse-free navigation (keyboard, remote keys, emulated gamepad), neon focus, interface sounds with mute/volume.
 - [x] All three baseline scenarios independently validated; hard and impossible cases tested.
 - [x] UI labels the simulated Alexa+ experience and the limited local parser; no Amazon logo or endorsement claim.
 - [x] `.env` ignored; `.env.example` contains names only; no keys, passwords or personal data in the repo.
 - [x] Screenshots in `evidence/` come from the real app (smoke run).
-- [x] MIT `LICENSE`; README commands (`npm install`, `npm start`, `npm test`, `npm run test:smoke`, `npm run test:qa`, `npm run audit:screens`) run in this checkout.
+- [x] MIT `LICENSE`; README commands (`npm install`, `npm start`, `npm test`, all `test:*` / `audit:*` suites, `npm run build`, `npm run verify:dist`) run in this checkout.
 - [x] English demo script (`docs/DEMO_SCRIPT.md`) and Devpost draft (`docs/DEVPOST_SUBMISSION.md`).
 
 ## Operator actions (not done)
 
 - [ ] Verify README commands on a fresh clone on another machine.
+- [ ] Optional: try a real gamepad and a real TV browser / Fire TV remote; until then the docs say these were emulated, not hardware-tested.
 - [ ] Optional: configure `LLM_API_KEY`, verify a live request, then update README/Devpost text — otherwise leave the LLM claim out.
 - [ ] Create a public GitHub repository (or private + shared per the rules) and push.
 - [ ] Record the < 3:00 English video from the running app; upload as **public** on YouTube/Vimeo.

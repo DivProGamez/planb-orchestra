@@ -6,7 +6,7 @@ If you test official Amazon tooling before submitting, add a section from your o
 
 ## Node.js (v24.11.0) — built-in test runner `node:test`
 
-- **Used for:** 80 unit, integration, scenario, parser-corpus, offline LLM-adapter and randomized-audit tests; no test framework dependency.
+- **Used for:** 92 unit, integration, scenario, parser-corpus, offline LLM-adapter, navigation/sound and randomized-audit tests; no test framework dependency.
 - **Worked well:** zero install, ESM support, `t.diagnostic()` for reporting audit counts.
 - **Would use again:** yes.
 
@@ -29,3 +29,11 @@ If you test official Amazon tooling before submitting, add a section from your o
 - **Used for:** `server/llm-adapter.js` (structured output via `messages.parse` + `zodOutputFormat`).
 - **Verified:** the package imports and exposes those functions; the adapter logic is tested offline with an injected stub client. **Not verified:** any live request — no API key was
   available, so no claim is made about latency, accuracy or cost.
+
+## Web platform (Chrome 1xx, observed while building remote navigation)
+
+- There is no built-in spatial navigation in browsers; the CSS Spatial Navigation draft is not shipped, so every
+  TV-style web app needs its own engine. We wrote a small one (`src/nav.js`) rather than adopt a React-oriented library.
+- The Gamepad API only reports controllers after a button press and requires polling; a "gamepad connected" event
+  without a press would make first-use feedback easier.
+- `<details>` fires `toggle` when an element is created already open, which is easy to mistake for a user action.

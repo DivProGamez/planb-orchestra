@@ -13,6 +13,8 @@ import {
   VIEWS, renderSidebar, renderTopbar, renderHome, renderHomePreview, renderWorkspace, renderAssistantView,
   renderRepair, renderCompare, renderHistory, renderSettings, renderDisruptionModal, renderNeedsPlan,
 } from './views.js';
+import { createNavigator } from './nav.js';
+import { createSoundManager } from './sound.js';
 
 const root = document.getElementById('app');
 const PREFS_KEY = 'planb-orchestra.prefs';
@@ -30,7 +32,7 @@ function safeStorage() {
 const storage = safeStorage();
 
 function loadPrefs() {
-  const defaults = { confirm: true, ghosts: true, reduceMotion: false };
+  const defaults = { confirm: true, ghosts: true, reduceMotion: false, sound: true, volume: 0.4 };
   try { return { ...defaults, ...JSON.parse(storage.getItem(PREFS_KEY) || '{}') }; } catch { return defaults; }
 }
 function savePrefs() {
@@ -61,6 +63,8 @@ const ui = {
   previewRowH: null,
   compareRowH: null,
   historyRowH: null,
+  openTrace: null, // conversation index of the open "Agent steps" panel (null = newest, -1 = none)
+  followChat: false, // set when the user sends: the next render scrolls to the newest message
   notice: '',
   draft: '',
   prefs: loadPrefs(),
@@ -69,6 +73,66 @@ const ui = {
 };
 
 const reduceMotion = () => ui.prefs.reduceMotion || Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+
+/* ---------- Sound and navigation ---------- */
+
+const sound = createSoundManager({
+  createContext: () => new (window.AudioContext || window.webkitAudioContext)(),
+  enabled: ui.prefs.sound,
+  volume: ui.prefs.volume,
+});
+// Audio may only start after a user gesture; navigation never waits for it.
+for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, () => sound.unlock(), { capture: true });
+
+const INITIAL_FOCUS = {
+  home: ['button[form="setup-form"]', '.tile.is-active'],
+  workspace: ['#tl-main .bar.is-selected', '#tl-main .bar.is-changed', '#tl-main .bar', '.btn-primary'],
+  assistant: ['.confirm-card [data-action="confirm-change"]', '.as-foot .chip', '#cmd'],
+  repair: ['.ledger-row', '.stage', '[data-action="open-disruption"]'],
+  compare: ['.map-row.is-selected .map-head', '.map-head', '#tl-after .bar'],
+  history: ['.rev-card[aria-pressed="true"]', '.rev-card'],
+  settings: ['.switch', '.view button'],
+  modal: ['#dis-text', '.modal [data-action="confirm-change"]', '.modal button'],
+};
+const viewStack = [];
+
+const nav = createNavigator({
+  root,
+  scope: () => root.querySelector('.modal') || root,
+  view: () => ui.view,
+  initialFor: (view) => ['[data-action="build-from"]', ...(INITIAL_FOCUS[view] || [])],
+  isReduced: reduceMotion,
+  hasPending: () => Boolean(ui.pending || ui.modal.open),
+  onMove: () => sound.play('focus'),
+  onSelect: () => sound.play('select'),
+  onBack: goBack,
+});
+
+/** Back (Escape, remote Back, gamepad B): innermost first — dialog, pending change, crisis, inspector, screen. */
+function goBack() {
+  if (ui.modal.open || ui.pending) { cancelPending(); sound.play('back'); return true; }
+  if (ui.proposal) { ui.proposal = null; ui.status = 'idle'; render(); sound.play('back'); return true; }
+  if (document.activeElement?.closest?.('.conversation')) {
+    // leave the chat history: back to the quick actions under it
+    nav.focusEl(root.querySelector('.as-foot .chip') || root.querySelector('#cmd'));
+    sound.play('back');
+    return true;
+  }
+  if (ui.selectedTaskId && ['workspace', 'compare', 'repair'].includes(ui.view)) {
+    const id = ui.selectedTaskId;
+    ui.selectedTaskId = null;
+    persist();
+    render();
+    // back to the task the inspector was showing
+    const bar = root.querySelector(`#tl-main .bar[data-task="${CSS.escape(id)}"], #tl-after .bar[data-task="${CSS.escape(id)}"], .map-head[data-task="${CSS.escape(id)}"], .ledger-row[data-task="${CSS.escape(id)}"]`);
+    nav.focusEl(bar);
+    sound.play('back');
+    return true;
+  }
+  const prev = viewStack.pop();
+  if (prev || ui.view !== 'home') { navigate(prev || 'home', { fromBack: true }); sound.play('back'); return true; }
+  return false;
+}
 
 /* ---------- Persistence ---------- */
 
@@ -173,6 +237,8 @@ function setStatus(status) {
 async function requestChange(text, source, origin) {
   const trimmed = String(text || '').trim();
   if (!trimmed || !ui.session || ui.status === 'parsing' || ui.status === 'planning') return;
+  ui.followChat = true;
+  ui.openTrace = null;
   ui.draft = '';
   setStatus('parsing');
   const parsed = await parseText(trimmed, source);
@@ -182,6 +248,7 @@ async function requestChange(text, source, origin) {
       ui.pending = { origin, input: trimmed, parsed, preview: { ok: false, errors: [`I couldn't map “${trimmed}” to a supported change${parsed.notes?.length ? ` (${parsed.notes.join(' ')})` : ''}. Try one of the examples, or the structured change.`] } };
       ui.modal = { ...ui.modal, open: true, step: 'review', draft: trimmed };
       render();
+      sound.play('error');
       return;
     }
     await runTurn(trimmed, parsed);
@@ -198,6 +265,7 @@ function prepareReview(input, parsed, origin) {
   ui.status = 'idle';
   if (origin === 'modal') ui.modal = { ...ui.modal, open: true, step: 'review' };
   render();
+  if (!preview.ok) sound.play('error');
   root.querySelector('[data-action="confirm-change"]')?.focus();
 }
 
@@ -245,6 +313,7 @@ async function runTurn(input, parsed) {
   if (ui.proposal) ui.view = 'workspace';
   persist();
   render();
+  sound.play(ui.session.revisions.length < before ? 'undo' : ui.session.revisions.length > before ? 'success' : result.reply.tone === 'done' ? 'select' : 'error');
   if (ui.proposal) {
     root.querySelector('.canvas')?.classList.add('crisis-pulse');
     root.querySelector('#infeasible')?.focus();
@@ -263,6 +332,7 @@ function chooseOption(index) {
   ui.compareA = null; ui.compareB = null; ui.historyIndex = null;
   persist();
   render();
+  sound.play('success');
 }
 
 function buildPlan(targetView = 'workspace') {
@@ -280,6 +350,7 @@ function buildPlan(targetView = 'workspace') {
   ui.home.error = '';
   persist();
   render();
+  sound.play('success');
 }
 
 function newSession() {
@@ -352,19 +423,31 @@ function shellHtml() {
 }
 
 function render() {
-  const activeId = document.activeElement?.id;
+  nav.beforeRender();
+  const oldConv = root.querySelector('.conversation');
+  const chat = oldConv ? { top: oldConv.scrollTop, atBottom: oldConv.scrollHeight - oldConv.scrollTop - oldConv.clientHeight < 48, count: oldConv.children.length } : null;
   const head = ui.session ? currentRevision(ui.session) : null;
   document.documentElement.classList.toggle('reduce-motion', ui.prefs.reduceMotion);
   root.innerHTML = shellHtml();
-  if (fitCharts()) root.innerHTML = shellHtml();
+  placeHow();
+  if (fitCharts()) { root.innerHTML = shellHtml(); placeHow(); }
   root.dataset.view = ui.view;
   root.dataset.revisions = String(ui.session?.revisions.length || 0);
   const conv = root.querySelector('.conversation');
-  if (conv) conv.scrollTop = conv.scrollHeight;
-  if (activeId) root.querySelector(`#${CSS.escape(activeId)}`)?.focus();
+  if (conv) {
+    const grew = !chat || conv.children.length > chat.count;
+    // follow the newest message only after the user sent one or was already reading the bottom
+    if (!chat || ui.followChat || (grew && chat.atBottom)) conv.scrollTop = conv.scrollHeight;
+    else conv.scrollTop = chat.top;
+    if (grew) ui.followChat = false;
+  }
   if (ui.modal.open && !root.contains(document.activeElement?.closest?.('.modal') || null)) {
     root.querySelector(ui.modal.step === 'review' ? '[data-action="confirm-change"], [data-action="cancel-change"]' : '#dis-text')?.focus();
   }
+  syncCompareScroll();
+  wireChatNav();
+  stabilizePreview();
+  nav.afterRender();
   if (ui.animateRevisionId && head && ui.animateRevisionId === head.id && ui.view === 'workspace') {
     playTransition();
     ui.animateRevisionId = null;
@@ -377,6 +460,11 @@ function render() {
  */
 function fitCharts() {
   let changed = false;
+  // Rows are fitted only where the layout gives a chart a bounded box; stacked layouts use natural rows.
+  if (!window.matchMedia?.('(min-width: 1101px) and (min-height: 700px)').matches) {
+    for (const key of ['rowH', 'previewRowH', 'compareRowH', 'historyRowH']) if (ui[key] !== null) { ui[key] = null; changed = true; }
+    return changed;
+  }
   const fit = (selector, key, plans, state, compact, extra = 0, minRow, maxRow) => {
     const el = root.querySelector(selector);
     if (!el || !state) return;
@@ -396,22 +484,14 @@ function fitCharts() {
       fit('.snap-tl', 'historyRowH', [R.plan], R.state, true, 0, 30, 92);
     }
   }
-  if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true, 0, undefined, 96);
+  if (ui.view === 'home' && ui.preview?.ok && ui.home.tab !== 'tasks') fit('.preview-body', 'previewRowH', [ui.preview.plan], ui.preview.state, true, 0, 30, 80);
   return changed;
 }
 
 function refreshPreview() {
+  nav.beforeRender();
   computePreview();
-  const box = root.querySelector('#home-preview');
-  if (box) {
-    box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
-    if (fitCharts()) box.innerHTML = renderHomePreview(getScenario(ui.home.scenarioId), ui.preview, ui.home.tab);
-  }
   const s = getScenario(ui.home.scenarioId);
-  const out = root.querySelector('[data-out="deadline"]');
-  if (out) out.textContent = formatClock(s, ui.home.form.deadlineMin);
-  const win = root.querySelector('[data-out="window"]');
-  if (win) win.textContent = `Start ${formatClock(s, s.startMin)} · window ${formatDuration(ui.home.form.deadlineMin - s.startMin)}`;
   // The hero card summarises the same preview; re-render it without touching the form.
   const hero = root.querySelector('.home-main');
   if (hero) {
@@ -420,6 +500,73 @@ function refreshPreview() {
     const fresh = tmp.querySelector('.home-main');
     if (fresh) hero.replaceWith(fresh);
   }
+  placeHow();
+  const box = root.querySelector('#home-preview');
+  if (box) {
+    box.innerHTML = renderHomePreview(s, ui.preview, ui.home.tab);
+    if (fitCharts()) box.innerHTML = renderHomePreview(s, ui.preview, ui.home.tab);
+  }
+  const out = root.querySelector('[data-out="deadline"]');
+  if (out) out.textContent = formatClock(s, ui.home.form.deadlineMin);
+  const win = root.querySelector('[data-out="window"]');
+  if (win) win.textContent = `Start ${formatClock(s, s.startMin)} · window ${formatDuration(ui.home.form.deadlineMin - s.startMin)}`;
+  stabilizePreview();
+  nav.afterRender();
+}
+
+/**
+ * Stacked Home layout: the Tasks tab reuses the height the timeline actually had, so switching tabs
+ * never moves the page (on desktop the flex layout already gives both tabs the same box).
+ */
+let previewBodyH = 0;
+/** "How PlanB works" fills the space under the scenario cards only when it fits without scrolling. */
+function placeHow() {
+  const how = root.querySelector('.view-home .how');
+  const host = root.querySelector('.view-host');
+  if (!how || !host) return;
+  how.classList.remove('is-hidden');
+  if (host.scrollHeight > host.clientHeight + 1) how.classList.add('is-hidden');
+}
+
+function stabilizePreview() {
+  const body = root.querySelector('.preview-body');
+  if (!body) return;
+  const stacked = window.matchMedia?.('(max-width: 1100px)').matches;
+  if (ui.home.tab !== 'tasks') { body.style.height = ''; previewBodyH = body.offsetHeight; return; }
+  if (stacked && previewBodyH) { body.style.height = `${previewBodyH}px`; body.classList.add('is-bounded'); }
+}
+
+/** Chat scroll buttons reflect the history's scroll position (aria-disabled keeps focus on them at a limit). */
+function wireChatNav() {
+  const c = root.querySelector('.conversation');
+  if (!c) return;
+  const update = () => {
+    const atTop = c.scrollTop <= 1;
+    const atEnd = c.scrollHeight - c.clientHeight - c.scrollTop <= 1;
+    for (const b of root.querySelectorAll('[data-action="chat-scroll"]')) {
+      const off = b.dataset.dir === 'up' ? atTop : atEnd;
+      b.setAttribute('aria-disabled', String(off));
+      b.classList.toggle('is-off', off);
+    }
+  };
+  c.addEventListener('scroll', update, { passive: true });
+  requestAnimationFrame(update);
+}
+
+/** Before/After: Plan A and Plan B scroll sideways together so the same minute stays aligned. */
+function syncCompareScroll() {
+  const a = root.querySelector('#tl-before');
+  const b = root.querySelector('#tl-after');
+  if (!a || !b) return;
+  let lock = false;
+  const link = (src, dst) => src.addEventListener('scroll', () => {
+    if (lock) return;
+    lock = true;
+    dst.scrollLeft = src.scrollLeft;
+    requestAnimationFrame(() => { lock = false; });
+  }, { passive: true });
+  link(a, b);
+  link(b, a);
 }
 
 /** FLIP: start changed bars (and a moved deadline) at their previous coordinates, then transition. */
@@ -449,9 +596,13 @@ function playTransition() {
 
 /* ---------- Events ---------- */
 
-function navigate(view) {
+function navigate(view, { fromBack = false } = {}) {
   const def = VIEWS.find((v) => v.id === view);
   if (!def) return;
+  if (view !== ui.view) {
+    nav.leaving(ui.view);
+    if (!fromBack) { viewStack.push(ui.view); if (viewStack.length > 20) viewStack.shift(); }
+  }
   ui.view = view;
   if (view !== 'workspace') ui.animateRevisionId = null;
   persist();
@@ -474,14 +625,15 @@ root.addEventListener('click', (ev) => {
     case 'build-from': buildPlan(el.dataset.view === 'compare' || el.dataset.view === 'history' || el.dataset.view === 'repair' ? 'workspace' : el.dataset.view); break;
     case 'quick': requestChange(el.dataset.text, 'quick', 'chat'); break;
     case 'quick-review': ui.modal = { open: true, step: 'describe', draft: el.dataset.text }; requestChange(el.dataset.text, 'quick', 'modal'); break;
-    case 'open-disruption': ui.pending = null; ui.modal = { open: true, step: 'describe', draft: '' }; render(); break;
+    case 'open-disruption': ui.pending = null; ui.modal = { open: true, step: 'describe', draft: '' }; render(); sound.play('open'); break;
     case 'close-modal': cancelPending(); break;
     case 'modal-back': ui.modal = { ...ui.modal, step: 'describe', draft: ui.pending?.input || ui.modal.draft }; ui.pending = null; render(); break;
     case 'dis-example': { const ta = root.querySelector('#dis-text'); if (ta) { ta.value = el.dataset.text; ta.focus(); } break; }
     case 'confirm-change': if (ui.pending?.preview?.ok) confirmWith(ui.pending); break;
     case 'cancel-change': cancelPending(); break;
     case 'toggle-ghosts': ui.prefs.ghosts = el.checked; savePrefs(); render(); break;
-    case 'pref': ui.prefs[el.dataset.pref] = el.checked; savePrefs(); render(); break;
+    case 'pref': ui.prefs[el.dataset.pref] = el.checked; savePrefs(); if (el.dataset.pref === 'sound') sound.setEnabled(el.checked); render(); break;
+    case 'sound-test': sound.play('success'); break;
     case 'advance': runTurn(`Advance the clock ${el.dataset.min} minutes`, { intent: 'advance', minutes: Number(el.dataset.min), shocks: [], parser: 'form', source: 'form' }); break;
     case 'select-task': {
       const id = el.dataset.task;
@@ -490,6 +642,14 @@ root.addEventListener('click', (ev) => {
       render();
       // keep the linked change-map / ledger entry in view
       root.querySelector('.map-row.is-selected, .ledger-row.is-selected')?.scrollIntoView({ block: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+      break;
+    }
+    case 'chat-scroll': {
+      const c = root.querySelector('.conversation');
+      if (!c || el.getAttribute('aria-disabled') === 'true') break;
+      const behavior = reduceMotion() ? 'auto' : 'smooth';
+      if (el.dataset.dir === 'latest') c.scrollTo({ top: c.scrollHeight, behavior });
+      else c.scrollBy({ top: (el.dataset.dir === 'up' ? -1 : 1) * Math.round(c.clientHeight * 0.75), behavior });
       break;
     }
     case 'history-pick': ui.historyIndex = Number(el.dataset.index); render(); break;
@@ -501,6 +661,34 @@ root.addEventListener('click', (ev) => {
     default: break;
   }
 });
+
+// Re-rendering an open <details> also fires 'toggle'; only a user's click on its summary changes the accordion.
+// The accordion state changes synchronously on the user's click (a re-render in between must not
+// undo it); the 'toggle' event that follows only closes the other panels and keeps the opened one in view.
+// Re-rendering an open <details> also fires 'toggle', so only toggles that follow a user click count.
+let userToggle = false;
+root.addEventListener('click', (ev) => {
+  const summary = ev.target.closest?.('details.trace-wrap > summary');
+  if (!summary) return;
+  const d = summary.parentElement;
+  userToggle = true;
+  const opening = !d.open;
+  ui.openTrace = opening ? Number(d.dataset.msg) : -1;
+}, true);
+root.addEventListener('toggle', (ev) => {
+  const d = ev.target;
+  if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('trace-wrap') || !userToggle) return;
+  userToggle = false;
+  if (!d.open) return;
+  for (const other of root.querySelectorAll('details.trace-wrap[open]')) if (other !== d) other.open = false;
+  const conv = d.closest('.conversation');
+  if (conv) {
+    // keep the reading position; only scroll as far as needed to show the opened steps
+    const c = conv.getBoundingClientRect();
+    const r = d.getBoundingClientRect();
+    if (r.bottom > c.bottom) conv.scrollTop += Math.min(r.bottom - c.bottom + 12, r.top - c.top - 8);
+  }
+}, true);
 
 root.addEventListener('submit', (ev) => {
   ev.preventDefault();
@@ -532,6 +720,14 @@ root.addEventListener('input', (ev) => {
   const el = ev.target;
   if (el.id === 'cmd') { ui.draft = el.value; return; }
   if (el.id === 'dis-text') { ui.modal.draft = el.value; return; }
+  if (el.dataset.action === 'pref-volume') {
+    ui.prefs.volume = Number(el.value) / 100;
+    sound.setVolume(ui.prefs.volume);
+    savePrefs();
+    const out = root.querySelector('[data-out="volume"]');
+    if (out) out.textContent = `${el.value}%`;
+    return;
+  }
   if (ui.view !== 'home') return;
   const f = ui.home.form;
   if (el.dataset.field === 'deadline') f.deadlineMin = Number(el.value);
@@ -547,6 +743,7 @@ root.addEventListener('change', (ev) => {
     if (slot) slot.innerHTML = manualParam(el.value, currentRevision(ui.session));
     return;
   }
+  if (el.dataset.action === 'pref-volume') { sound.play('focus'); return; }
   if (el.dataset.action === 'compare-pick') {
     const value = Number(el.value);
     if (el.dataset.side === 'a') ui.compareA = value;
@@ -563,10 +760,6 @@ root.addEventListener('change', (ev) => {
 
 document.addEventListener('keydown', (ev) => {
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
-  if (ev.key === 'Escape') {
-    if (ui.modal.open || ui.pending) { cancelPending(); return; }
-    if (ui.proposal) { ui.proposal = null; ui.status = 'idle'; render(); return; }
-  }
   if (typing || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   if (ev.key === '/' && ui.session) {
     ev.preventDefault();
@@ -576,13 +769,14 @@ document.addEventListener('keydown', (ev) => {
     ui.pending = null;
     ui.modal = { open: true, step: 'describe', draft: '' };
     render();
+    sound.play('open');
   }
 });
 
 let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => { ui.rowH = null; ui.previewRowH = null; ui.compareRowH = null; ui.historyRowH = null; if (!document.getElementById('splash')) render(); }, 150);
+  resizeTimer = setTimeout(() => { previewBodyH = 0; ui.rowH = null; ui.previewRowH = null; ui.compareRowH = null; ui.historyRowH = null; if (!document.getElementById('splash')) render(); }, 150);
 });
 
 window.addEventListener('error', (e) => {

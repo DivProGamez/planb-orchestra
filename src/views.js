@@ -117,6 +117,7 @@ export function renderNeedsPlan({ view, scenario }) {
 
 export function renderHome({ scenarios, home, preview, session, notice }) {
   const sel = scenarios.find((s) => s.id === home.scenarioId);
+  const activeHere = session && session.scenarioId === sel.id ? session.revisions[session.revisions.length - 1].id : null;
   const p = preview.ok ? preview.plan : null;
   const ps = preview.ok ? preview.state.scenario : null;
   const resume = session ? (() => {
@@ -156,7 +157,8 @@ export function renderHome({ scenarios, home, preview, session, notice }) {
       <section class="hero card" aria-labelledby="hero-title">
         <div class="hero-glow" aria-hidden="true"></div>
         <div class="hero-head">
-          <span class="tag ${preview.ok ? 'tag-ok' : 'tag-bad'}">${preview.ok ? `${icon('check', 12)} Feasible baseline` : `${icon('alert', 12)} No feasible baseline`}</span>
+          <span class="tag ${preview.ok ? 'tag-ok' : 'tag-bad'}" title="Computed live from the constraints below; nothing is saved until you build">${preview.ok ? `${icon('check', 12)} Validated preview` : `${icon('alert', 12)} No feasible baseline`}</span>
+          ${activeHere ? `<span class="tag tag-primary" title="A plan for this scenario is built and saved">${icon('workspace', 12)} Active plan · ${esc(activeHere)}</span>` : '<span class="tag" title="No plan has been built for this scenario">Not built yet</span>'}
           <span class="mono muted small">${esc(sel.id)}</span>
         </div>
         <div class="hero-title-row">
@@ -166,8 +168,9 @@ export function renderHome({ scenarios, home, preview, session, notice }) {
         ${preview.ok ? `<div class="hero-stats">${stats.map(([l, v, sub]) => `<div class="hs"><span class="kpi-label">${esc(l)}</span><strong>${esc(v)}</strong><span class="muted small">${esc(sub)}</span></div>`).join('')}</div>`
     : `<ul class="violations">${preview.errors.map((e) => `<li><span class="proof proof-${esc(e.proof || 'proven')}">${e.proof === 'search' ? 'Bounded search' : 'Proven'}</span> ${esc(e.message)}</li>`).join('')}</ul>`}
         <div class="hero-actions">
-          <button class="btn btn-primary btn-lg" type="submit" form="setup-form">${icon('play', 16)}<span>Build feasible plan</span></button>
-          ${session ? '<span class="muted small">Building replaces the current session.</span>' : '<span class="muted small">Runs the deterministic scheduler and the independent validator.</span>'}
+          <button class="btn btn-primary btn-lg" type="submit" form="setup-form">${icon('play', 16)}<span>${activeHere ? 'Rebuild from these constraints' : 'Build feasible plan'}</span></button>
+          ${activeHere ? `<button class="btn btn-quiet" data-action="nav" data-view="workspace">${icon('workspace', 15)}<span>Open active plan ${esc(activeHere)}</span></button>` : ''}
+          <span class="muted small">${session ? `Building replaces the current session${activeHere ? '' : ` (${esc(scenarios.find((x) => x.id === session.scenarioId)?.name || '')})`}.` : 'Runs the deterministic scheduler and the independent validator.'}</span>
         </div>
       </section>
       <section class="scenarios" aria-labelledby="sc-title">
@@ -201,7 +204,7 @@ export function renderHomePreview(scenario, preview, tab) {
   }
   return `
     <div class="card-head">
-      <h2>${icon('workspace', 16)} Live preview</h2>
+      <h2>${icon('workspace', 16)} Live preview <span class="muted small preview-note">not saved</span></h2>
       <div class="seg" role="group" aria-label="Preview view">
         <button class="seg-btn" data-action="home-tab" data-tab="timeline" aria-pressed="${tab !== 'tasks'}">Timeline</button>
         <button class="seg-btn" data-action="home-tab" data-tab="tasks" aria-pressed="${tab === 'tasks'}">Tasks</button>
@@ -222,7 +225,7 @@ function renderTaskTable(scenario) {
       <td class="small muted">${esc([...t.dependsOn, ...(t.softDependsOn || [])].map((d) => scenario.tasks.find((x) => x.id === d)?.title).join(', ') || '—')}</td>
       <td>${t.alternatives.length ? esc(t.alternatives.map((a) => scenario.alternatives.find((x) => x.id === a)?.title).join(', ')) : '—'}</td>
     </tr>`).join('');
-  return `<div class="table-wrap"><table class="tasks">
+  return `<div class="table-wrap" tabindex="0" role="region" aria-label="All tasks of this scenario (scrollable table)" data-scroll-region><table class="tasks">
       <thead><tr><th>Task</th><th>Priority</th><th class="num">Duration</th><th class="num">Cost</th><th>Needs</th><th>After</th><th>Listed fallback</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
 }
@@ -348,13 +351,13 @@ export function renderAssistantView(ctx) {
     actions: `<button class="btn btn-quiet" data-action="nav" data-view="workspace">${icon('workspace', 15)}<span>Open timeline</span></button>`,
   })}
     <div class="assistant-grid">
-      <section class="card chat-card" aria-label="Conversation">${renderAssistant(ctx)}</section>
+      <section class="card chat-card" aria-label="Conversation" data-nav-group>${renderAssistant(ctx)}</section>
       <div class="assistant-side">
-        <section class="card" aria-labelledby="und-title">
+        <section class="card" aria-labelledby="und-title" tabindex="0" data-nav="panel">
           <div class="card-head"><h2 id="und-title">${icon('list', 16)} ${ui.pending ? 'Pending change' : 'Last understood change'}</h2>${ui.pending ? '<span class="tag tag-warn">Awaiting review</span>' : ''}</div>
           ${understood.length ? `<ul class="cc-list">${understood.map((d) => `<li>${icon('check', 13)} ${esc(d)}</li>`).join('')}</ul>` : '<div class="empty small">Nothing yet — try a quick command below the conversation.</div>'}
         </section>
-        <section class="card" aria-labelledby="ps-title">
+        <section class="card" aria-labelledby="ps-title" tabindex="0" data-nav="panel">
           <div class="card-head"><h2 id="ps-title">${icon('shield', 16)} Plan status</h2><span class="tag tag-ok">${icon('check', 12)} Feasible</span></div>
           <div class="status-list">
             <div><span class="muted">Validator</span><strong>${p.validation.checks} checks · 0 violations</strong></div>
@@ -363,7 +366,7 @@ export function renderAssistantView(ctx) {
             <div><span class="muted">Clock</span><strong>${esc(formatClock(s, session.nowMin))} · ${Object.keys(head.state.committed).length} task(s) started or done</strong></div>
           </div>
         </section>
-        <section class="card" aria-labelledby="lu-title">
+        <section class="card" aria-labelledby="lu-title" tabindex="0" data-nav="panel">
           <div class="card-head"><h2 id="lu-title">${icon('chat', 16)} Language understanding</h2>${parserPill(parser, true)}</div>
           <p class="muted small">${parser.mode === 'llm' ? `Requests go to ${esc(parser.model)} on the local server; the output is re-validated against the allowlisted shock schema.` : 'A limited, deterministic rule parser reads requests in this browser. It is not a language model; unsupported phrasing is reported, never guessed.'}</p>
         </section>
@@ -484,22 +487,25 @@ export function renderConfirmCard(pending, { inModal = false } = {}) {
 
 function renderAssistant(ctx) {
   const { session, scenario, ui } = ctx;
-  const recent = session.conversation.slice(-24);
+  const recent = session.conversation; // full history; the conversation region scrolls
   const lastAssistant = recent.map((m) => m.role).lastIndexOf('assistant');
-  const traceHtml = (m, open) => (m.trace?.length ? `
-      <details class="trace-wrap" ${open ? 'open' : ''}>
-        <summary>Agent steps (${m.trace.length})</summary>
+  // One "Agent steps" panel open at a time: the newest by default, else the one the user opened (-1 = none).
+  const openIndex = ui.openTrace ?? lastAssistant;
+  const traceHtml = (m, open, i) => (m.trace?.length ? `
+      <details class="trace-wrap" data-msg="${i}" ${open ? 'open' : ''}>
+        <summary aria-label="Agent steps (${m.trace.length}) for this reply">Agent steps (${m.trace.length})</summary>
         <ol class="trace">${m.trace.map((t) => `<li class="tr tr-${esc(t.status)}"><span class="tr-step">${esc(t.step)}</span><span class="tr-detail">${esc(t.detail)}</span></li>`).join('')}</ol>
       </details>` : '');
-  const msgs = recent.map((m, i) => `
-    <li class="msg msg-${m.role} ${m.tone ? `tone-${m.tone}` : ''}">
+  // a message is a directional target itself only when it has no controls inside (else its summary / chips are)
+  const msgs = recent.map((m, i) => ({ m, i, actions: messageActions(m, session) })).map(({ m, i, actions }) => `
+    <li class="msg msg-${m.role} ${m.tone ? `tone-${m.tone}` : ''}" ${m.trace?.length || actions ? '' : 'tabindex="-1" data-nav="msg"'} data-msg="${i}" aria-label="${m.role === 'user' ? 'You' : 'PlanB'}: ${esc(m.text.slice(0, 120))}">
       ${m.role === 'assistant' ? `<span class="msg-avatar">${logoSvg(22, `m${i}`)}</span>` : ''}
       <div class="msg-bubble">
         <div class="msg-who">${m.role === 'user' ? `You${m.source && m.source !== 'typed' ? ` · ${esc(m.source)}` : ''}` : 'PlanB'}</div>
-        <div class="msg-text">${esc(m.text)}</div>${traceHtml(m, i === lastAssistant)}${messageActions(m, session)}
+        <div class="msg-text">${esc(m.text)}</div>${traceHtml(m, i === openIndex, i)}${actions}
       </div>
     </li>`).join('');
-  const intro = `<li class="msg msg-assistant"><span class="msg-avatar">${logoSvg(22, 'intro')}</span><div class="msg-bubble"><div class="msg-who">PlanB</div><div class="msg-text">Your ${esc(scenario.name.toLowerCase())} plan is ready and validated. Tell me what changed — in your own words — and I'll show you what I understood before replanning.</div></div></li>`;
+  const intro = `<li class="msg msg-assistant" tabindex="-1" data-nav="msg" data-msg="intro" aria-label="PlanB: introduction"><span class="msg-avatar">${logoSvg(22, 'intro')}</span><div class="msg-bubble"><div class="msg-who">PlanB</div><div class="msg-text">Your ${esc(scenario.name.toLowerCase())} plan is ready and validated. Tell me what changed — in your own words — and I'll show you what I understood before replanning.</div></div></li>`;
   const pending = ui.pending && ui.pending.origin === 'chat' ? `<li class="msg msg-assistant msg-pending"><span class="msg-avatar">${logoSvg(22, 'pend')}</span><div class="msg-bubble">${renderConfirmCard(ui.pending)}</div></li>` : '';
   const chips = scenario.quickCommands.map((q) => `<button class="chip" data-action="quick" data-text="${esc(q.text)}" title="${esc(q.text)}">${esc(q.label)}</button>`).join('');
   const busy = ui.status === 'parsing' || ui.status === 'planning';
@@ -508,8 +514,13 @@ function renderAssistant(ctx) {
     <div class="as-head">
       <div class="orb orb-${esc(ui.status)}" aria-hidden="true"><span>${logoSvg(24, 'orb')}</span></div>
       <div><div class="as-title">PlanB assistant</div><div class="as-status" role="status" aria-live="polite">${esc(STATUS_LABEL[ui.status] || ui.status)}</div></div>
+      <div class="chat-nav" role="group" aria-label="Scroll the conversation">
+        <button class="btn btn-sm btn-icon" data-action="chat-scroll" data-dir="up" aria-label="Scroll the conversation up" title="Scroll up">${icon('arrow', 14)}</button>
+        <button class="btn btn-sm btn-icon" data-action="chat-scroll" data-dir="down" aria-label="Scroll the conversation down" title="Scroll down">${icon('arrow', 14)}</button>
+        <button class="btn btn-sm" data-action="chat-scroll" data-dir="latest" aria-label="Jump to the latest message">${icon('arrow', 13)}<span>Latest</span></button>
+      </div>
     </div>
-    <ol class="conversation" aria-live="polite" aria-relevant="additions">${intro}${msgs}${pending}</ol>
+    <ol class="conversation" aria-live="polite" aria-relevant="additions" tabindex="-1" data-scroll-step data-nav-group aria-label="Conversation history">${intro}${msgs}${pending}</ol>
     <div class="as-foot">
       <div class="chips" role="group" aria-label="Quick commands">${chips}</div>
       <form class="composer" data-form="command">
@@ -635,7 +646,7 @@ export function renderRepair(ctx) {
     const label = { ok: 'Complete', warn: 'Attention', fail: 'Failed', skipped: 'Skipped', idle: 'Not reached' }[status];
     const metric = t ? STAGE_METRIC[t.step]?.(t.detail) : null;
     return `
-    <li class="stage stage-${status}" style="--i:${i}">
+    <li class="stage stage-${status}" style="--i:${i}" tabindex="0" data-stage="${i + 1}" aria-label="Stage ${i + 1}: ${esc(stage.title)} — ${label}${metric ? ` — ${esc(metric[0])} ${esc(metric[1])}` : ''}">
       <div class="stage-top"><span class="stage-node" aria-hidden="true">${status === 'ok' ? icon('check', 12) : status === 'fail' ? icon('x', 12) : status === 'warn' ? icon('alert', 12) : String(i + 1)}</span><span class="stage-no mono">Stage ${String(i + 1).padStart(2, '0')}</span><span class="stage-status">${label}</span></div>
       <div class="stage-title">${icon(stage.icon, 18)}<strong>${esc(t?.step === 'Option confirmed by you' ? 'Option confirmed' : t?.step && t.step !== stage.step ? t.step : stage.title)}</strong></div>
       ${metric ? `<div class="stage-metric"><strong class="mono">${esc(metric[0])}</strong><span>${esc(metric[1])}</span></div>` : ''}
@@ -648,7 +659,7 @@ export function renderRepair(ctx) {
   const axis = prev ? { start: s.startMin, end: Math.max(s.deadlineMin, prev.state.scenario.deadlineMin, head.plan.endMin, prev.plan.endMin) } : null;
   if (axis) axis.span = Math.max(1, axis.end - axis.start);
   const changes = head.diff && committed ? head.diff.changed.map((e, i) => `
-    <li class="ledger-row ${ui.selectedTaskId === e.taskId ? 'is-selected' : ''}" data-action="select-task" data-task="${esc(e.taskId)}">
+    <li class="ledger-row ${ui.selectedTaskId === e.taskId ? 'is-selected' : ''}" data-action="select-task" data-task="${esc(e.taskId)}" tabindex="0" role="button" aria-pressed="${ui.selectedTaskId === e.taskId}">
       <div class="lr-top">
         <span class="tag mono">T-${String(i + 1).padStart(2, '0')}</span>
         <strong class="lr-title">${e.kind === 'Replaced' ? `<span class="was">${esc(e.beforeTitle)}</span> → ` : ''}${esc(e.title)}</strong>
@@ -909,6 +920,12 @@ export function renderSettings(ctx) {
         ${sw('confirm', 'Review changes before replanning', 'Show what was understood and a dry-run impact before committing')}
         ${sw('ghosts', 'Show previous positions', 'Dashed outlines where changed tasks used to be')}
         ${sw('reduceMotion', 'Reduce motion', 'Turn off transitions and animations (system setting is also respected)')}
+        ${sw('sound', 'Interface sounds', 'Short navigation and result cues, synthesised in this browser')}
+        <div class="vol-row">
+          <label for="pref-volume"><span class="sw-title">Sound volume</span><span class="sw-sub" data-out="volume">${Math.round(ui.prefs.volume * 100)}%</span></label>
+          <input type="range" id="pref-volume" min="0" max="100" step="5" value="${Math.round(ui.prefs.volume * 100)}" data-action="pref-volume" ${ui.prefs.sound ? '' : 'disabled'} aria-label="Interface sound volume">
+          <button class="btn btn-sm" data-action="sound-test" ${ui.prefs.sound ? '' : 'disabled'}>Play test</button>
+        </div>
       </section>
       <section class="card" aria-labelledby="st-data">
         <div class="card-head"><h2 id="st-data">${icon('lock', 16)} Data &amp; privacy</h2></div>
@@ -919,12 +936,12 @@ export function renderSettings(ctx) {
         <button class="btn btn-quiet" data-action="new-session" ${session ? '' : 'disabled'}>Clear saved session</button>
       </section>
       <section class="card" aria-labelledby="st-keys">
-        <div class="card-head"><h2 id="st-keys">${icon('list', 16)} Keyboard</h2></div>
+        <div class="card-head"><h2 id="st-keys">${icon('list', 16)} Keyboard, remote &amp; gamepad</h2></div>
         <table class="keys"><tbody>
-          <tr><td><kbd>/</kbd></td><td>Focus the assistant input (workspace)</td></tr>
-          <tr><td><kbd>D</kbd></td><td>Open “Simulate disruption”</td></tr>
-          <tr><td><kbd>Esc</kbd></td><td>Close dialogs, cancel a pending change, dismiss the crisis panel</td></tr>
-          <tr><td><kbd>Enter</kbd></td><td>Send / confirm</td></tr>
+          <tr><td><kbd>←↑↓→</kbd></td><td>Move focus to the nearest control (D-pad, left stick)</td></tr>
+          <tr><td><kbd>Enter</kbd></td><td>Activate (Space, OK, gamepad A)</td></tr>
+          <tr><td><kbd>Esc</kbd></td><td>Back: close a dialog, cancel a pending change, close the inspector, previous screen (Back, gamepad B)</td></tr>
+          <tr><td><kbd>/</kbd> <kbd>D</kbd></td><td>Assistant input · “Simulate disruption”</td></tr>
         </tbody></table>
       </section>
     </div>

@@ -12,7 +12,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
 const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 
-export function createApp({ env = process.env, adapter = { llmStatus, parseWithLlm } } = {}) {
+/** staticDir: 'src' (development, default) or 'dist' (the verified production build, STATIC_DIR=dist). */
+export function createApp({ env = process.env, adapter = { llmStatus, parseWithLlm }, staticDir = env.STATIC_DIR || 'src' } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -39,7 +40,7 @@ export function createApp({ env = process.env, adapter = { llmStatus, parseWithL
   });
 
   app.use('/api', (req, res) => res.status(404).json({ ok: false, error: 'not_found' }));
-  app.use(express.static(path.join(root, 'src'), { extensions: ['html'] }));
+  app.use(express.static(path.join(root, staticDir === 'dist' ? 'dist' : 'src'), { extensions: ['html'] }));
 
   // Malformed JSON and other errors → JSON 400/500 instead of an HTML stack trace.
   app.use((err, req, res, next) => {

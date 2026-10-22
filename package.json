@@ -14,7 +14,14 @@
     "test:smoke": "node tests/smoke/browser-smoke.mjs",
     "check:fixtures": "node scripts/check-fixtures.mjs",
     "audit:screens": "node tests/smoke/populated-audit.mjs",
-    "test:qa": "node tests/smoke/release-qa.mjs"
+    "test:qa": "node tests/smoke/release-qa.mjs",
+    "test:nav": "node tests/smoke/nav-qa.mjs",
+    "audit:responsive": "node tests/smoke/responsive-audit.mjs",
+    "test:chat": "node tests/smoke/chat-qa.mjs",
+    "test:scroll": "node tests/smoke/scroll-qa.mjs",
+    "build": "node scripts/build.mjs",
+    "start:dist": "node server/start-dist.mjs",
+    "verify:dist": "node scripts/verify-dist.mjs"
   },
   "dependencies": {
     "express": "5.1.0"

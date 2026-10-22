@@ -6,6 +6,8 @@ Browser (all planning happens here, works offline)
  ├─ src/views.js          screens: Home, Workspace, Assistant, Repair, Compare, History, Settings, disruption dialog
  ├─ src/components.js     pure view functions (data → escaped HTML)
  ├─ src/persistence.js    versioned localStorage envelope + migration, injectable storage
+ ├─ src/nav.js            spatial navigation + one input adapter (keyboard, remote keys, gamepad, pointer)
+ ├─ src/sound.js          UI sound manager (Web Audio synthesis, unlock-on-gesture, throttle, mute/volume)
  └─ src/engine/
      ├─ model.js          shared helpers: variants, clock/money formatting, orderingPreds
      ├─ validate.js       validateScenario (schema, references, cycles) + independent validatePlan
@@ -18,7 +20,8 @@ Browser (all planning happens here, works offline)
      └─ agent.js          agent turn: parse → validate → plan → validate → explain → commit/ask
 
 Node server (optional for planning; serves static files)
- ├─ server/app.js         Express: GET /api/health, POST /api/intent, static src/
+ ├─ server/app.js         Express: GET /api/health, POST /api/intent, static src/ (or dist/ with STATIC_DIR=dist)
+ ├─ server/start-dist.mjs serves the verified production build
  ├─ server/schema.js      request validation + re-validation of model output via shocks.js
  └─ server/llm-adapter.js optional Claude adapter (lazy-loaded SDK, LLM_API_KEY server-side only)
 ```
@@ -109,3 +112,22 @@ for which `planSchedule` returns a validated feasible plan are shown; applying o
 - `duration_increase` affects the task's base variant, not its alternatives.
 - In-progress work is assumed to finish as scheduled even if its equipment later breaks.
 - Extending the deadline does not extend people's own availability windows.
+
+## Navigation and focus (`src/nav.js`)
+
+- **Targets:** visible, enabled semantic controls of the current scope (the open dialog, else the app), plus
+  directional-only targets (`[data-nav]`: chat messages without inner controls, read-only side panels) that Tab skips.
+  Scroll areas whose visible part holds no control are made focusable regions at render time (and re-checked on scroll).
+- **Direction:** `pickCandidate` scores candidates beyond the focused element's centre by gap along the direction plus
+  twice the misalignment across it. `directionalTarget` searches nav groups (`[data-nav-group]`: chat history, then
+  chat card) innermost first, and ignores controls clipped by a scroll container unless the focus is inside it.
+- **Scrolling:** inside a scroll area, if the next control lies outside it (or there is none) and the area can still
+  scroll that way, the area scrolls a step instead; reading areas (`[data-scroll-step]`) also step through content not
+  yet visible before focus moves. Focus leaves at the edge. Horizontal timelines work the same way.
+- **Re-renders:** the app re-renders by replacing HTML, so focus is tracked by a stable key (id or data attributes) and
+  restored after every render; a removed element falls back to its nearest neighbour; each screen remembers its last
+  focus; closing a dialog returns focus to its trigger.
+- **Inputs:** arrows / Enter / Space / Escape / Backspace, TV Back keys (`GoBack`, `BrowserBack`, keyCodes 461 and
+  10009) and standard-mapping gamepads (polled only while one is connected). Key repeat never re-activates; one press
+  seen by two sources at once activates once. Fields keep native editing; number fields edit with Up/Down only once
+  the user is editing them; sliders keep Left/Right.

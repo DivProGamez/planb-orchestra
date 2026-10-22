@@ -231,6 +231,59 @@ await check('reduced motion (system setting): changes apply without animations',
   expect(!animated, 'animations still run with reduced motion');
 });
 
+await check('Home Live preview: Timeline ↔ Tasks keeps the layout stable; every task row and column reachable inside the table', async () => {
+  const geo = (pg) => pg.evaluate(() => {
+    const r = (sel) => { const el = document.querySelector(sel); if (!el) return null; const b = el.getBoundingClientRect(); return { top: Math.round(b.top), h: Math.round(b.height) }; };
+    const host = document.querySelector('.view-host');
+    return { preview: r('.preview'), constraints: r('.constraints-card'), tile: r('.tile'), page: host.scrollHeight };
+  });
+  for (const [w, h] of [[1920, 1080], [1440, 900], [1280, 720], [768, 1024]]) {
+    const pg = await newPage(w, h);
+    await pg.goto(base);
+    await ready(pg);
+    await pg.waitForTimeout(300);
+    const a = await geo(pg);
+    await pg.click('[data-action="home-tab"][data-tab="tasks"]');
+    await pg.waitForTimeout(300);
+    const b = await geo(pg);
+    const jump = (x, y) => Math.abs(x - y);
+    if (w >= 1101) {
+      expect(jump(a.preview.h, b.preview.h) <= 4, `${w}×${h}: preview height ${a.preview.h} → ${b.preview.h}`);
+      expect(jump(a.constraints.top, b.constraints.top) <= 4, `${w}×${h}: Constraints moved ${a.constraints.top} → ${b.constraints.top}`);
+      expect(jump(a.page, b.page) <= 4, `${w}×${h}: page height ${a.page} → ${b.page}`);
+    } else {
+      expect(b.preview.h <= a.preview.h + 140, `${w}×${h}: stacked preview grew ${a.preview.h} → ${b.preview.h}`);
+    }
+    expect(jump(a.tile.h, b.tile.h) <= 2, `${w}×${h}: scenario cards stretched ${a.tile.h} → ${b.tile.h}`);
+    const reach = await pg.evaluate(() => {
+      const wrap = document.querySelector('.table-wrap');
+      const rows = wrap.querySelectorAll('tbody tr').length;
+      wrap.scrollTop = wrap.scrollHeight; wrap.scrollLeft = wrap.scrollWidth;
+      const wr = wrap.getBoundingClientRect();
+      const last = wrap.querySelector('tbody tr:last-child').getBoundingClientRect();
+      const lastCol = wrap.querySelector('thead th:last-child').getBoundingClientRect();
+      const head = wrap.querySelector('thead th').getBoundingClientRect();
+      return { rows, lastRow: last.bottom <= wr.bottom + 1 && last.top >= wr.top - 1, lastCol: lastCol.right <= wr.right + 1, sticky: head.top >= wr.top - 1 && head.top <= wr.top + 2, noPageX: document.documentElement.scrollWidth <= innerWidth };
+    });
+    const tasks = await pg.evaluate(() => document.querySelectorAll('.tile.is-active').length && Number(document.querySelector('.tile.is-active .tile-facts span:nth-child(2)').textContent.replace(/\D/g, '')));
+    expect(reach.rows === tasks, `${w}×${h}: table shows ${reach.rows} of ${tasks} tasks`);
+    expect(reach.lastRow && reach.lastCol, `${w}×${h}: last row or last column not reachable`);
+    expect(reach.sticky, `${w}×${h}: column headers not sticky`);
+    expect(reach.noPageX, `${w}×${h}: page scrolls horizontally`);
+    // keyboard: the table region scrolls with Up/Down, then focus moves on
+    await pg.evaluate(() => { const wr = document.querySelector('.table-wrap'); wr.scrollTop = 0; });
+    await pg.locator('.table-wrap').focus();
+    await pg.keyboard.press('ArrowDown');
+    await pg.waitForTimeout(350);
+    expect(await pg.evaluate(() => document.activeElement.classList.contains('table-wrap') && document.querySelector('.table-wrap').scrollTop > 0) || reach.rows < 6, `${w}×${h}: ArrowDown did not scroll the table`);
+    await pg.click('[data-action="home-tab"][data-tab="timeline"]');
+    await pg.waitForTimeout(300);
+    const c = await geo(pg);
+    expect(jump(a.preview.h, c.preview.h) <= 4 && jump(a.tile.h, c.tile.h) <= 2, `${w}×${h}: back to Timeline changed the layout`);
+    await pg.context().close();
+  }
+});
+
 await check('no console errors, warnings or uncaught exceptions', async () => {
   expect(errors.length === 0, errors.slice(0, 5).join(' | '));
 });

@@ -1,0 +1,12 @@
+{
+  "containersTested": 74,
+  "summary": [
+    "1920×1080: home 0, home tasks 1, workspace 1, assistant 1, repair 2, compare 1, history 1, settings 0, dialog 0",
+    "1440×900: home 0, home tasks 1, workspace 1, assistant 1, repair 3, compare 3, history 1, settings 1, dialog 0",
+    "1280×720: home 1, home tasks 2, workspace 2, assistant 1, repair 3, compare 3, history 2, settings 1, dialog 0",
+    "1024×768: home 1, home tasks 2, workspace 1, assistant 2, repair 2, compare 1, history 2, settings 1, dialog 0",
+    "768×1024: home 1, home tasks 2, workspace 2, assistant 2, repair 2, compare 1, history 2, settings 1, dialog 0",
+    "430×932: home 1, home tasks 1, workspace 1, assistant 1, repair 1, compare 1, history 2, settings 0, dialog 0"
+  ],
+  "problems": []
+}

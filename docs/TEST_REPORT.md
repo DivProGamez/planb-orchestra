@@ -1,18 +1,19 @@
 # Test report
 
-Generated from one run of every suite on 2026-10-21T18:15Z (Windows 11, Node v24.11.0, installed Google Chrome).
+Generated from one run of every suite on 2026-10-22T19:19Z (Windows 11, Node v24.11.0, installed Google Chrome).
 Each block below is copied from that run's output; nothing is hand-written as a result.
 
-## `npm test` (node:test) — engine, validator, parser, persistence, server, offline LLM adapter
+## `npm test` (node:test) — engine, validator, parser, persistence, server, offline LLM adapter, navigation, sound
 
 Suites: planner (G1 gates), shocks/reasons, parser corpus (34 phrasings + 7 negatives), new change types,
 scenario stories (all three), persistence (incl. corrupt/old/newer saved state), integration + server,
-offline LLM adapter (stub client), randomized audit.
+offline LLM adapter (stub client), navigation targeting / remote keys / gamepad repeat and debounce, sound manager
+(unlock, mute, throttle, missing Web Audio), randomized audit.
 
 ```
 ℹ feasible replans checked: 911; infeasible outcomes checked: 148
-ℹ tests 80
-ℹ pass 80
+ℹ tests 92
+ℹ pass 92
 ℹ fail 0
 ```
 
@@ -63,29 +64,102 @@ PASS  keyboard: D opens the dialog with focus in the text box, Escape closes it,
 PASS  every button, link and field has an accessible name (all screens)
 PASS  disruption dialog fits with its actions visible at 1280×720 and 1440×900
 PASS  reduced motion (system setting): changes apply without animations
+PASS  Home Live preview: Timeline ↔ Tasks keeps the layout stable; every task row and column reachable inside the table
 PASS  no console errors, warnings or uncaught exceptions
-Release QA: 13 passed, 0 failed.
+Release QA: 14 passed, 0 failed.
 ```
 
 ## `npm run audit:screens` — populated screens, all three scenarios, 1920×1080
-
-Build → assistant review (plan unchanged until confirmed) → confirm → workspace, inspector, assistant, repair
-(six completed stages), before/after, history → undo → reload (undo persisted), plus settings. Fails on page scroll,
-marker or ghost labels over bars, rows cut at the chart edge, controls outside their card, or console errors.
 
 ```
 Populated audit: 31 screenshots in evidence/populated/, 0 problem(s)
 ```
 
+## `npm run test:nav` — mouse-free navigation, emulated gamepad, sound, reduced motion
+
+```
+PASS  keyboard-only journey: Home → Dinner for Six → build → assistant change → review → confirm → repair → compare → inspect → history → undo → settings → home
+PASS  every control on every screen is reachable by arrows from the initial focus
+PASS  focus is restored when returning to a screen, and Back returns to the previous screen
+PASS  dialog: opens with focus inside, Tab and arrows stay inside, Escape restores the trigger
+PASS  Enter/Space activate exactly once; key repeat does not re-activate; disabled controls are skipped
+PASS  removed element: focus falls back to a live neighbour after a replan removes the focused task
+PASS  gamepad (emulated standard mapping): D-pad moves once per press, hold repeats, stick deadzone, A selects once, B goes back
+PASS  sound: a cue per real focus move (none at an edge), throttled when held, silent when muted, volume saved
+PASS  mouse still works and switches off the neon keyboard mode
+PASS  text fields keep native editing (caret keys, Enter submits); Up/Down and Escape leave the field
+PASS  number field: arrows pass through without changing the value; after typing, Up/Down edit natively
+PASS  reduced motion: focus has no pulse or scale but keeps the static cyan outline
+PASS  neon focus visible at 1920×1080, 1440×900 and 1280×720 (screenshots)
+PASS  no console errors, warnings or uncaught exceptions
+Navigation QA: 14 passed, 0 failed. Screenshots in evidence/neon/
+```
+
+## `npm run test:chat` — assistant history, accordion, remote-only browsing (1920 / 1440 / 1280 / 768)
+
+```
+PASS  1280×720: history scrolls inside its region, composer stays visible and clear of it, newest message in view
+PASS  1280×720: opening the first panel keeps the reading position, closes the others, and lower messages stay reachable
+PASS  1280×720: keyboard only — reach a panel summary with arrows, Enter toggles it, composer reachable
+PASS  1440×900: history scrolls inside its region, composer stays visible and clear of it, newest message in view
+PASS  1440×900: opening the first panel keeps the reading position, closes the others, and lower messages stay reachable
+PASS  1440×900: keyboard only — reach a panel summary with arrows, Enter toggles it, composer reachable
+PASS  1920×1080: history scrolls inside its region, composer stays visible and clear of it, newest message in view
+PASS  1920×1080: opening the first panel keeps the reading position, closes the others, and lower messages stay reachable
+PASS  1920×1080: keyboard only — reach a panel summary with arrows, Enter toggles it, composer reachable
+PASS  1920×1080 remote: enter history, oldest ↔ newest, read and toggle agent steps, Back, quick action, scroll buttons, Plan status
+PASS  1440×900 remote: enter history, oldest ↔ newest, read and toggle agent steps, Back, quick action, scroll buttons, Plan status
+PASS  1280×720 remote: enter history, oldest ↔ newest, read and toggle agent steps, Back, quick action, scroll buttons, Plan status
+PASS  768×1024 remote: enter history, oldest ↔ newest, read and toggle agent steps, Back, quick action, scroll buttons, Plan status
+PASS  no console errors
+Chat QA: 14 passed, 0 failed. Screenshots in evidence/assistant/
+```
+
+## `npm run audit:responsive` — 10 viewports from 430×932 to 1920×1080, every screen and the dialog
+
+Page overflow, text cut off, elements past the viewport, controls under 24 px, overlapping cards, content outside its
+card, blank task bars, nested scrolling in the timeline preview, a focused task hidden in a scrolling timeline.
+
+```
+Responsive audit: 10 viewports × 9 states, 0 problem(s). Screenshots in evidence/responsive/
+```
+
+## `npm run test:scroll` — every scroll container, arrows only, six viewports
+
+```
+Scroll audit: 74 scroll directions exercised with arrows only; 0 problem(s).
+  1920×1080: home 0, home tasks 1, workspace 1, assistant 1, repair 2, compare 1, history 1, settings 0, dialog 0
+  1440×900: home 0, home tasks 1, workspace 1, assistant 1, repair 3, compare 3, history 1, settings 1, dialog 0
+  1280×720: home 1, home tasks 2, workspace 2, assistant 1, repair 3, compare 3, history 2, settings 1, dialog 0
+  1024×768: home 1, home tasks 2, workspace 1, assistant 2, repair 2, compare 1, history 2, settings 1, dialog 0
+  768×1024: home 1, home tasks 2, workspace 2, assistant 2, repair 2, compare 1, history 2, settings 1, dialog 0
+  430×932: home 1, home tasks 1, workspace 1, assistant 1, repair 1, compare 1, history 2, settings 0, dialog 0
+```
+
+## Production build — `npm run build` + `npm run verify:dist`
+
+```
+Build: 18 files, 368.2 KiB → dist/
+Build verification passed: all local references resolve; no runtime network dependencies.
+Dist: 18 files served (HTTP 200); booted offline from dist/ and built a validated plan (66 checks).
+Production build verified.
+```
+
 Screenshots: `evidence/` (smoke, all viewports), `evidence/populated/` (31 populated screens),
-`evidence/story/` (Plan A → disruption → review → repair in motion → Plan B → Repair Workflow → Before/After).
+`evidence/story/` (Plan A → disruption → review → repair in motion → Plan B → Repair Workflow → Before/After),
+`evidence/neon/` (focused elements), `evidence/assistant/` (chat), `evidence/responsive/` (10 viewports).
 
 ## Not tested
 
 - Live LLM requests (no API key available). The adapter is exercised only with an injected stub client; nothing is
   claimed about a real model's parsing accuracy, latency or cost.
 - Real Alexa devices, voice, or Alexa APIs (none are used; this is a simulation).
+- Real gamepads, TV browsers and Fire TV remotes were not available: gamepad input was emulated through the Gamepad API
+  in Chrome and remote keys through keyboard events. Whether a device's browser delivers its Back key to the page is
+  device-specific.
 - Browsers other than desktop Chrome (phone/tablet sizes were emulated by viewport, not real devices).
 - Screen readers were not run. Accessible names, focus order/visibility, Escape handling and reduced motion are
-  checked automatically (`npm run test:qa`); assistive-technology behaviour itself is unverified.
+  checked automatically; assistive-technology behaviour itself is unverified.
 - Colour contrast was set from token values (secondary text ≥4.5:1 on card surfaces), not measured per element.
+- Sound was verified through an instrumented AudioContext (which cues play, when, throttling, mute); how it sounds on
+  real speakers was judged by ear only on the development machine.

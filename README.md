@@ -41,6 +41,22 @@ npm run test:qa
 npm run audit:screens
 ```
 
+More browser suites: `npm run test:nav` (mouse-free navigation, emulated gamepad, sound), `npm run test:chat`
+(assistant history and remote control of it), `npm run audit:responsive` (10 viewports), `npm run test:scroll` (every
+scroll container reached and scrolled with arrows only). Production build:
+
+```bash
+npm run build
+```
+
+```bash
+npm run verify:dist
+```
+
+`npm run build` copies the client into `dist/` and fails if any local reference is missing or any file loads something
+from the internet; `npm run verify:dist` serves `dist/`, fetches every file, and boots the app in Chrome with all
+external requests blocked. `npm run start:dist` serves the build.
+
 `npm run test:smoke` drives the real UI in an installed Chrome or Edge (`CHROME_PATH` overrides detection) and
 writes screenshots to `evidence/`. `npm run test:qa` checks edge cases and accessibility (corrupted saved state,
 cancelled and unsupported changes, impossible budgets, consecutive disruptions, displayed figures vs saved state,
@@ -84,8 +100,19 @@ page scrolling; long content scrolls inside its panel.
   highlights that task in both plans.
 - **History & Revisions:** revision timeline, snapshot inspection (timeline + diff table), rejected and undone requests.
 - **Settings & Transparency:** what is simulated, which parser runs, engine facts, preferences, data storage, shortcuts.
-- Keyboard: `/` focus input, `D` disruption dialog, `Esc` cancel/close. Responsive down to phone width; respects
-  `prefers-reduced-motion` and an in-app reduce-motion preference.
+- **Mouse-free navigation** (`src/nav.js`): one input adapter for keyboard, TV-remote keys and gamepads (standard
+  mapping: D-pad / left stick with deadzone and hold-to-repeat, A = select, B = back). Arrows move focus to the nearest
+  control in that direction; inside a scroll area they first reveal content that is not visible yet, and focus leaves an
+  area only at its edge, so nothing is unreachable and nothing traps. Enter / Space / OK activate, Escape / Back closes,
+  cancels, leaves the chat history or returns to the previous screen. Focus survives re-renders, is restored per screen
+  and after dialogs, and falls back to the nearest control if its element is removed. Text fields keep native editing.
+- **Neon focus:** a cyan outline and glow on the element focused by keyboard, remote or gamepad (never on mouse hover),
+  scaled to the element's size, with a short entry pulse and an activation flash; reduced motion keeps the static
+  outline only.
+- **Interface sounds** (`src/sound.js`): short original cues synthesised with the Web Audio API (focus tick, select, back,
+  open, success, error, undo), started only after a user gesture, throttled while a direction is held, with an on/off
+  switch and volume in Settings. No audio files and no background music.
+- Responsive from 430 px phones to 1920 px desktops; respects `prefers-reduced-motion` and an in-app preference.
 
 ## What it does (tested — see `docs/TEST_REPORT.md`)
 
