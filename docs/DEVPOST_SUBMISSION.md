@@ -1,6 +1,6 @@
 # Devpost submission draft
 
-Replace every `[TODO]` before submitting. Do not add claims that were not verified.
+Final text for the submission form. The only open item is the public video URL. Every figure below is in `docs/TEST_REPORT.md`.
 
 **Project title:** PlanB Orchestra — The Assistant That Rebuilds Your Plan
 **Tagline:** An Alexa+-style planning agent that recalculates household plans when life changes — and proves every decision.
@@ -49,8 +49,7 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
 - **Natural-language input:** a clearly labelled *limited local rule parser* (not an LLM), covered by a test corpus of
   34 change phrasings across the three scenarios plus 7 non-change/negative cases. An optional server-side adapter can use Claude through the Anthropic SDK
   (key read only on the server); its output is re-validated against the same schema and any failure falls back to
-  the local parser. [TODO — the adapter is tested offline with a stub client only; mention live LLM parsing only if
-  you configure a key and verify it yourself.]
+  the local parser. The adapter is tested offline with a stub client only; the demo and all tests use the local parser.
 - **Built for a TV-style remote too:** a small spatial-navigation engine moves focus with arrows, D-pad or a gamepad,
   scrolls long panels step by step so nothing is skipped, and never traps focus; the focused element gets a cyan neon
   outline, and short synthesised interface sounds (off-switch and volume in Settings) confirm moves and results.
@@ -79,6 +78,8 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
 - 92 automated unit/integration tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
   infeasible outcomes in the latest run) checked by the validator and an independent minute-by-minute brute-force
   checker — 0 violations — and story tests for all three scenarios.
+- Also passing in the same run: 14/14 navigation checks, 14/14 assistant-chat checks, a responsive audit at 10
+  viewports and a scroll audit (74 scroll directions, arrows only) with 0 problems, and an offline-verified production build.
 - Mouse-free navigation tested in Chrome with real key events and an emulated standard gamepad: a keyboard-only journey
   through every screen, every control reachable by arrows, every scroll container scrolled to its end, the assistant
   history browsed with Up/Down/OK/Back only. Not tested on real gamepad or Fire TV hardware.
@@ -101,14 +102,13 @@ Alexa+ integration paths if and when they become available to us.
 
 ## Built with
 
-JavaScript, Node.js, Express, HTML/CSS, node:test, Playwright (playwright-core) with Chrome for smoke tests.
-[TODO — add "Anthropic Claude API" only if the LLM adapter was enabled and verified.]
+JavaScript, Node.js, Express, HTML/CSS, Web Audio API, Gamepad API, node:test, Playwright (playwright-core) with Chrome for browser tests, FFmpeg for the demo video.
 
 ## Links
 
-- Repository: [TODO public GitHub URL, MIT license]
+- Repository: https://github.com/DivProGamez/planb-orchestra (MIT license)
 - Hosted demo: none (runs locally: `npm install && npm start`)
-- Video: [TODO public YouTube/Vimeo URL, under 3:00]
+- Video: [TODO public YouTube/Vimeo URL — `release/video/PlanB_Orchestra_Final_Demo.mp4`, 2:46]
 
 ## Transparency
 
