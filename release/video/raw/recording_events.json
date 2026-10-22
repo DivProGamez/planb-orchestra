@@ -1,0 +1,146 @@
+{
+  "events": [
+    {
+      "type": "beat",
+      "t": 0.003,
+      "epoch": 1792700993.137,
+      "n": 1
+    },
+    {
+      "type": "beat",
+      "t": 15.007,
+      "epoch": 1792701008.141,
+      "n": 2
+    },
+    {
+      "type": "sound",
+      "t": 16.529,
+      "epoch": 1792701009.663,
+      "cue": "success"
+    },
+    {
+      "type": "beat",
+      "t": 44.999,
+      "epoch": 1792701038.133,
+      "n": 3
+    },
+    {
+      "type": "sound",
+      "t": 46.268,
+      "epoch": 1792701039.402,
+      "cue": "open"
+    },
+    {
+      "type": "typing-start",
+      "t": 48.038,
+      "epoch": 1792701041.172
+    },
+    {
+      "type": "review-shown",
+      "t": 53.114,
+      "epoch": 1792701046.248
+    },
+    {
+      "type": "confirm-1",
+      "t": 66.298,
+      "epoch": 1792701059.432
+    },
+    {
+      "type": "sound",
+      "t": 66.398,
+      "epoch": 1792701059.532,
+      "cue": "success"
+    },
+    {
+      "type": "beat",
+      "t": 84.999,
+      "epoch": 1792701078.133,
+      "n": 4
+    },
+    {
+      "type": "compare-select",
+      "t": 100.388,
+      "epoch": 1792701093.522
+    },
+    {
+      "type": "beat",
+      "t": 120.002,
+      "epoch": 1792701113.136,
+      "n": 5
+    },
+    {
+      "type": "review-2",
+      "t": 124.336,
+      "epoch": 1792701117.47
+    },
+    {
+      "type": "confirm-2",
+      "t": 128.713,
+      "epoch": 1792701121.847
+    },
+    {
+      "type": "sound",
+      "t": 128.813,
+      "epoch": 1792701121.947,
+      "cue": "success"
+    },
+    {
+      "type": "reload",
+      "t": 131.408,
+      "epoch": 1792701124.542
+    },
+    {
+      "type": "reloaded",
+      "t": 133.688,
+      "epoch": 1792701126.822,
+      "revisions": "3"
+    },
+    {
+      "type": "beat",
+      "t": 145.001,
+      "epoch": 1792701138.135,
+      "n": 6
+    },
+    {
+      "type": "sound",
+      "t": 146.266,
+      "epoch": 1792701139.4,
+      "cue": "open"
+    },
+    {
+      "type": "review-3",
+      "t": 151.705,
+      "epoch": 1792701144.839
+    },
+    {
+      "type": "sound",
+      "t": 151.705,
+      "epoch": 1792701144.839,
+      "cue": "error"
+    },
+    {
+      "type": "crisis",
+      "t": 157.59,
+      "epoch": 1792701150.724
+    },
+    {
+      "type": "sound",
+      "t": 157.59,
+      "epoch": 1792701150.724,
+      "cue": "error"
+    },
+    {
+      "type": "end",
+      "t": 166.002,
+      "epoch": 1792701159.136
+    }
+  ],
+  "review": "Simulate a disruption\n\nDinner for Six · r0 · clock 4:00 PM. Work already started will stay fixed.\n\n1 DESCRIBE\n2 REVIEW\n3 REPLAN\nReview before I replan\nLOCAL RULE PARSER\nI UNDERSTOOD\nDeadline 60 min earlier (7:00 PM → 6:00 PM)\nOven unavailable\nCONSTRAINT CHANGES\nDeadline\t7:00 PM\t\t6:00 PM\nOven\tavailable\t\tdown\nPREDICTED IMPACT (DRY RUN, NOTHING SAVED YET)\nFeasible. 4 tasks change · finish 6:50 PM → 5:55 PM · $82 → $86 · 65 checks pass\nCancel\nEdit\nApply & replan",
+  "review3": "Simulate a disruption\n\nDinner for Six · r2 · clock 4:00 PM. Work already started will stay fixed.\n\n1 DESCRIBE\n2 REVIEW\n3 REPLAN\nReview before I replan\nSTRUCTURED FORM\nI UNDERSTOOD\nBudget cut to $30 (was $100)\nCONSTRAINT CHANGES\nBudget\t$100\t\t$30\nPREDICTED IMPACT (DRY RUN, NOTHING SAVED YET)\nNo feasible plan. Cheapest valid plan costs $59 (including $0 already committed); the budget is $30 · 1 verified option available\nCancel\nEdit\nRecord & show options",
+  "crisis": "No feasible plan — nothing was changed\n\nRequested: Budget cut to $30 (was $100) at 4:00 PM. Your constraints are untouched until you choose.\n\nKeep current plan\nHARD CONSTRAINTS THAT CANNOT ALL HOLD\nPROVEN BOUND BUDGET_EXCEEDED Cheapest valid plan costs $59 (including $0 already committed); the budget is $30\nOPTIONS THE PLANNER VERIFIED\nSet the budget to $59 instead\nRe-planned and validated: Finishes 6:00 PM, total $59\nApply",
+  "finalState": {
+    "revisions": "3",
+    "view": "home"
+  },
+  "dsf": 1.5
+}

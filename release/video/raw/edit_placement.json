@@ -1,0 +1,122 @@
+{
+  "PLACE": {
+    "voice_01_intro": 1,
+    "voice_02_plan": 16.8,
+    "voice_03_disruption": 49.05,
+    "voice_04_repair": 102.99,
+    "voice_05_memory": 129.21,
+    "voice_06_closing": 151.61
+  },
+  "cues": [
+    {
+      "start": 1,
+      "end": 2.68,
+      "text": "Plans don't fail at planning."
+    },
+    {
+      "start": 2.88,
+      "end": 4.76,
+      "text": "They fail at the first surprise."
+    },
+    {
+      "start": 17.14,
+      "end": 22.150000000000002,
+      "text": "PlanB schedules a real dinner: owners, dependencies, equipment, a budget —"
+    },
+    {
+      "start": 22.41,
+      "end": 26.17,
+      "text": "checked by a constraint engine, and re-checked by an independent validator."
+    },
+    {
+      "start": 49.459999999999994,
+      "end": 53.37,
+      "text": "Now the surprise: guests an hour early, and no oven."
+    },
+    {
+      "start": 53.769999999999996,
+      "end": 55.97,
+      "text": "PlanB first shows what it understood —"
+    },
+    {
+      "start": 56.18,
+      "end": 58.12,
+      "text": "nothing moves until you confirm."
+    },
+    {
+      "start": 103.33,
+      "end": 106.21,
+      "text": "Every change is explained by the constraint that forced it."
+    },
+    {
+      "start": 106.61999999999999,
+      "end": 108.85,
+      "text": "New finish: five fifty-five —"
+    },
+    {
+      "start": 109.11999999999999,
+      "end": 111.00999999999999,
+      "text": "five minutes before the guests walk in."
+    },
+    {
+      "start": 129.57000000000002,
+      "end": 131.58,
+      "text": "A second shock, absorbed."
+    },
+    {
+      "start": 131.83,
+      "end": 135.24,
+      "text": "And the plan remembers — this session survives a reload."
+    },
+    {
+      "start": 151.88000000000002,
+      "end": 154.83,
+      "text": "And when no plan exists, PlanB says so —"
+    },
+    {
+      "start": 154.99,
+      "end": 157.67000000000002,
+      "text": "it never invents time, people, or money."
+    },
+    {
+      "start": 157.99,
+      "end": 160.85,
+      "text": "In its own audit: zero broken constraints."
+    },
+    {
+      "start": 161.08,
+      "end": 164.94,
+      "text": "PlanB Orchestra — a simulated Alexa+ experience."
+    }
+  ],
+  "zooms": [
+    [
+      53.413999999999994,
+      65.898,
+      1.28,
+      960,
+      545
+    ],
+    [
+      124.736,
+      128.41299999999998,
+      1.14,
+      760,
+      640
+    ],
+    [
+      101.388,
+      111.888,
+      1.16,
+      1230,
+      540
+    ],
+    [
+      157.74,
+      160.19,
+      1.18,
+      1080,
+      430
+    ]
+  ]
+}

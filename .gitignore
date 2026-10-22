@@ -2,3 +2,8 @@ node_modules/
 .env
 *.log
 dist/
+# video: large binaries and scratch stay local (see release/video/PlanB_Orchestra_Video_QA.md)
+release/video/work/
+release/video/raw/*.mp4
+release/video/*.mp4
+release/video/audio/*.wav
