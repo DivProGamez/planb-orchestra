@@ -30,6 +30,8 @@ it says so, shows the hard constraints that conflict, and offers options the pla
 (raise the budget to the minimum, move the deadline, or skip a non-essential task). Nothing changes until the user
 picks one. Sessions, revisions, undo and the simulation clock survive a page reload.
 
+**Create your own plan:** besides the three built-in scenarios, you can define your own event — people with availability windows, optional equipment with capacity, tasks with durations, costs, priorities, who can do them and what they depend on, a budget and a deadline. The same engine plans and validates it as you type (or says exactly why it cannot work), and saved plans use the whole flow: review before replanning, Before/After, Repair, Undo and history.
+
 ## How we built it
 
 - **Deterministic constraint engine** (plain JavaScript, runs entirely in the browser): a bounded list scheduler that
@@ -75,7 +77,7 @@ picks one. Sessions, revisions, undo and the simulation clock survive a page rel
 
 ## Accomplishments that we're proud of
 
-- 92 automated unit/integration tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
+- 104 automated unit/integration tests, including a randomized audit of 500 random change sequences (911 feasible replans and 148
   infeasible outcomes in the latest run) checked by the validator and an independent minute-by-minute brute-force
   checker — 0 violations — and story tests for all three scenarios.
 - Also passing in the same run: 14/14 navigation checks, 14/14 assistant-chat checks, a responsive audit at 10
