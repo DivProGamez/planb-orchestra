@@ -58,9 +58,11 @@ export function validateScenario(s) {
     add('SCHEMA', 'deadlineMin must be an integer after startMin');
   }
   if (!isInt(s.budgetCap) || s.budgetCap < 0) add('SCHEMA', 'budgetCap must be a non-negative integer');
-  for (const key of ['people', 'resources', 'tasks']) {
+  for (const key of ['people', 'tasks']) {
     if (!Array.isArray(s[key]) || s[key].length === 0) add('SCHEMA', `${key} must be a non-empty array`);
   }
+  // equipment is optional: a plan may have none (every use of resources iterates the list)
+  if (!Array.isArray(s.resources)) add('SCHEMA', 'resources must be an array');
   if (errors.length) return { ok: false, errors };
 
   const uniq = (list, label) => {

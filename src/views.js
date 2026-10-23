@@ -10,6 +10,7 @@ import { COMPRESSION_LEVELS, SEARCH_LIMIT } from './engine/scheduler.js';
 
 export const VIEWS = [
   { id: 'home', label: 'Scenarios & Home', icon: 'home', section: 'Orchestration canvas' },
+  { id: 'create', label: 'Create your own plan', icon: 'plus', section: 'Orchestration canvas' },
   { id: 'workspace', label: 'Plan Workspace', icon: 'workspace', section: 'Orchestration canvas', needsSession: true },
   { id: 'assistant', label: 'Assistant & Copilot', icon: 'sparkle', section: 'Orchestration canvas', needsSession: true },
   { id: 'repair', label: 'Repair Workflow', icon: 'repair', section: 'Orchestration canvas', needsSession: true },
@@ -134,7 +135,7 @@ export function renderHome({ scenarios, home, preview, session, notice }) {
     const active = s.id === home.scenarioId;
     return `
     <button class="tile ${active ? 'is-active' : ''}" data-action="choose-scenario" data-id="${esc(s.id)}" aria-pressed="${active}">
-      <span class="tile-head"><span class="tile-icon">${scenarioIcon(s.id, 22)}</span>${active ? '<span class="tag tag-primary">Selected</span>' : session?.scenarioId === s.id ? '<span class="tag">In session</span>' : ''}</span>
+      <span class="tile-head"><span class="tile-icon">${scenarioIcon(s.id, 22)}</span>${active ? '<span class="tag tag-primary">Selected</span>' : session?.scenarioId === s.id ? '<span class="tag">In session</span>' : s.custom ? '<span class="tag">Your plan</span>' : ''}</span>
       <span class="tile-name">${esc(s.name)}</span>
       <span class="tile-tag">${esc(s.tagline)}</span>
       <span class="tile-facts mono">
@@ -170,11 +171,13 @@ export function renderHome({ scenarios, home, preview, session, notice }) {
         <div class="hero-actions">
           <button class="btn btn-primary btn-lg" type="submit" form="setup-form">${icon('play', 16)}<span>${activeHere ? 'Rebuild from these constraints' : 'Build feasible plan'}</span></button>
           ${activeHere ? `<button class="btn btn-quiet" data-action="nav" data-view="workspace">${icon('workspace', 15)}<span>Open active plan ${esc(activeHere)}</span></button>` : ''}
+          ${sel.custom ? `<button class="btn btn-quiet" data-action="b-edit" data-id="${esc(sel.id)}">${icon('edit', 15)}<span>Edit this plan</span></button>` : ''}
           <span class="muted small">${session ? `Building replaces the current session${activeHere ? '' : ` (${esc(scenarios.find((x) => x.id === session.scenarioId)?.name || '')})`}.` : 'Runs the deterministic scheduler and the independent validator.'}</span>
         </div>
       </section>
       <section class="scenarios" aria-labelledby="sc-title">
-        <div class="section-head"><h2 id="sc-title">${icon('layers', 16)} Available scenarios</h2><span class="muted small">Seeded, feasible household plans</span></div>
+        <div class="section-head"><h2 id="sc-title">${icon('layers', 16)} Available scenarios</h2><span class="muted small">${scenarios.some((s) => s.custom) ? 'Built-in examples and your own plans' : 'Seeded, feasible household plans'}</span>
+          <button class="btn btn-sm" data-action="nav" data-view="create">${icon('plus', 13)}<span>Create your own plan</span></button></div>
         <div class="tiles" role="group" aria-label="Scenarios">${cards}</div>
       </section>
       <section class="how card" aria-label="How PlanB works">

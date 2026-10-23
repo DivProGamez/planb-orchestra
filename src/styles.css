@@ -1044,3 +1044,44 @@ html[data-input="keys"] [data-nav="panel"]:focus { outline: 2px solid var(--neon
 @media (max-width: 1100px) { .chat-card { height: min(78vh, 760px); } } /* stacked: the history still scrolls on its own */
 html[data-input="keys"] .msg:focus-within:not(:focus) .msg-bubble { border-color: rgba(0, 245, 255, 0.5); box-shadow: 0 0 16px rgba(0, 245, 255, 0.16); } /* the message holding focus */
 html[data-input="keys"] [data-scroll-region]:focus { outline: 2px solid var(--neon); outline-offset: -2px; box-shadow: inset 0 0 0 1px rgba(134, 255, 255, 0.5), inset 0 0 18px rgba(0, 245, 255, 0.18); border-radius: var(--r); }
+
+/* ======================================================================
+   Create your own plan
+   ====================================================================== */
+.create-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 420px); gap: 16px; align-items: start; }
+.create-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.create-side { position: sticky; top: 0; min-width: 0; }
+@media (min-width: 1101px) and (min-height: 700px) {
+  .view-create { height: auto; min-height: 100%; }
+  .view-host:has(> .view-create) { overflow-y: auto; }
+}
+@media (max-width: 1100px) { .create-grid { grid-template-columns: minmax(0, 1fr); } .create-side { position: static; } }
+.b-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 14px; }
+.b-grid .span2 { grid-column: span 2; }
+@media (max-width: 760px) { .b-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.b-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.b-field input, .b-field select { width: 100%; min-width: 0; height: 36px; padding: 0 10px; border-radius: 8px; background: var(--s1); border: 1px solid var(--line-2); color: var(--text); font: inherit; font-size: 13.5px; }
+.b-field input:focus, .b-field select:focus { border-color: rgba(192, 193, 255, 0.6); }
+.b-field.grow { flex: 1 1 200px; }
+.b-field.narrow { flex: 0 0 92px; }
+.b-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.b-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.b-index { flex: none; width: 26px; height: 36px; display: grid; place-items: center; color: var(--faint); font-size: 12px; }
+.b-task { display: grid; gap: 8px; padding: 10px 12px 12px; border-radius: var(--r); background: var(--s1); border: 1px solid var(--line); }
+.b-moves { display: flex; gap: 4px; margin-left: auto; }
+.b-moves [data-dir="-1"] .ico { transform: rotate(-90deg); }
+.b-chips-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-left: 36px; min-width: 0; }
+.b-chips-row .kpi-label { margin-right: 4px; }
+.b-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; padding: 4px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; background: var(--s3); border: 1px solid var(--line-2); color: var(--text-2); }
+.b-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-chip.is-on { background: var(--primary-dim); border-color: rgba(192, 193, 255, 0.55); color: var(--primary); font-weight: 600; }
+.b-deps { padding-left: 36px; }
+.b-deps summary { cursor: pointer; font-size: 12.5px; color: var(--text-2); padding: 4px 0; min-height: 26px; }
+.b-deps .b-chips-row { padding-left: 0; margin-top: 6px; }
+.b-side { display: grid; gap: 12px; }
+.b-errors { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 12.5px; }
+.b-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.b-preview { max-height: 360px; overflow: auto; border-radius: var(--r); }
+.b-preview .tl-grid { min-width: 0; }
+.b-io textarea { width: 100%; min-height: 160px; padding: 10px 12px; border-radius: 8px; background: var(--s1); border: 1px solid var(--line-2); color: var(--text); font-family: var(--mono); font-size: 12px; resize: vertical; }
+@container (max-width: 380px) { .b-preview .tl-axis .at:nth-child(even):not(:last-child) { display: none; } } /* very narrow charts: every other hour label */

@@ -1,7 +1,8 @@
 // UI controller: view routing, events, persistence and rendering. All planning happens in the
 // engine modules; this file never computes schedules itself.
 
-import { SCENARIOS, getScenario } from './data/scenarios.js';
+import { SCENARIOS, getScenario as getBuiltIn } from './data/scenarios.js';
+import { createCustomStore, buildScenario, emptyDraft, exampleDraft, draftFromScenario, exportDraft, importDraft, newKey, LIMITS } from './data/custom.js';
 import { createSession, currentRevision, proposeShocks } from './engine/session.js';
 import { validateScenario } from './engine/validate.js';
 import { formatClock, formatDuration } from './engine/model.js';
@@ -13,6 +14,7 @@ import {
   VIEWS, renderSidebar, renderTopbar, renderHome, renderHomePreview, renderWorkspace, renderAssistantView,
   renderRepair, renderCompare, renderHistory, renderSettings, renderDisruptionModal, renderNeedsPlan,
 } from './views.js';
+import { renderCreate, renderBuilderSide } from './views-create.js';
 import { createNavigator } from './nav.js';
 import { createSoundManager } from './sound.js';
 
@@ -30,6 +32,19 @@ function safeStorage() {
   }
 }
 const storage = safeStorage();
+const customStore = createCustomStore(storage);
+/** Built-in scenario or one of the user's saved plans. */
+function getScenario(id) {
+  return getBuiltIn(id) || customStore.get(id);
+}
+const allScenarios = () => [...SCENARIOS, ...customStore.list()];
+const DRAFT_KEY = 'planb-orchestra.builder-draft';
+function loadDraft() {
+  try { const d = JSON.parse(storage.getItem(DRAFT_KEY) || 'null'); return d && Array.isArray(d.people) && Array.isArray(d.tasks) && Array.isArray(d.resources) ? d : null; } catch { return null; }
+}
+function saveDraft() {
+  try { storage.setItem(DRAFT_KEY, JSON.stringify(ui.builder.draft)); } catch { /* storage unavailable */ }
+}
 
 function loadPrefs() {
   const defaults = { confirm: true, ghosts: true, reduceMotion: false, sound: true, volume: 0.4 };
@@ -69,6 +84,7 @@ const ui = {
   draft: '',
   prefs: loadPrefs(),
   boot: { summary: '' },
+  builder: { draft: null, result: null, preview: null, io: null, notice: '', confirmDelete: false, openDeps: null },
   parser: { mode: 'local', reason: 'Checking server…' },
 };
 
@@ -86,6 +102,7 @@ for (const type of ['pointerdown', 'keydown']) document.addEventListener(type, (
 
 const INITIAL_FOCUS = {
   home: ['button[form="setup-form"]', '.tile.is-active'],
+  create: ['#b-name'],
   workspace: ['#tl-main .bar.is-selected', '#tl-main .bar.is-changed', '#tl-main .bar', '.btn-primary'],
   assistant: ['.confirm-card [data-action="confirm-change"]', '.as-foot .chip', '#cmd'],
   repair: ['.ledger-row', '.stage', '[data-action="open-disruption"]'],
@@ -148,6 +165,7 @@ function restore() {
     ui.view = VIEWS.some((v) => v.id === res.ui.view) ? res.ui.view : 'workspace';
     ui.selectedTaskId = res.ui.selectedTaskId || null;
     if (getScenario(res.session.scenarioId)) selectScenario(res.session.scenarioId);
+    else if (!getScenario(ui.home.scenarioId)) selectScenario(SCENARIOS[0].id);
     ui.notice = '';
   } else if (res.reason !== 'empty') {
     ui.notice = res.message || 'Saved session could not be restored.';
@@ -335,6 +353,99 @@ function chooseOption(index) {
   sound.play('success');
 }
 
+/* ---------- Create your own plan ---------- */
+
+function checkBuilder() {
+  const b = ui.builder;
+  b.result = buildScenario(b.draft);
+  if (!b.result.ok) { b.preview = null; return; }
+  const res = createSession(b.result.scenario, { now: 0 });
+  b.preview = res.ok ? { ok: true, plan: res.session.revisions[0].plan, state: res.session.revisions[0].state } : { ok: false, errors: res.errors || [] };
+}
+let builderTimer = null;
+function refreshBuilderSide() {
+  checkBuilder();
+  const side = root.querySelector('#builder-side');
+  if (!side) return;
+  nav.beforeRender();
+  side.innerHTML = renderBuilderSide(context());
+  nav.afterRender();
+}
+function builderSet(pathText, el) {
+  const path = pathText.split('.');
+  let target = ui.builder.draft;
+  for (const k of path.slice(0, -1)) target = target[/^\d+$/.test(k) ? Number(k) : k];
+  const key = path.at(-1);
+  target[key] = el.type === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value;
+  ui.builder.confirmDelete = false;
+  saveDraft();
+  // names and titles also label the chips below: refresh those without stealing focus
+  if (el.tagName === 'SELECT') { checkBuilder(); render(); return; }
+  clearTimeout(builderTimer);
+  builderTimer = setTimeout(() => {
+    if (/(name|title)$/.test(key) && path[0] !== 'name') {
+      for (const node of root.querySelectorAll(`[data-ref="${CSS.escape(target.key)}"] span`)) node.textContent = el.value || '…';
+    }
+    refreshBuilderSide();
+  }, 180);
+}
+function builderAdd(list) {
+  const d = ui.builder.draft;
+  if (d[list].length >= LIMITS[list]) return;
+  const row = list === 'people' ? { key: newKey('p'), name: '', from: d.start, to: d.deadline }
+    : list === 'resources' ? { key: newKey('r'), name: '', capacity: 1 }
+      : { key: newKey('t'), title: '', duration: 30, minDuration: 30, cost: 0, priority: 'must', people: [], resources: [], dependsOn: [] };
+  d[list].push(row);
+  saveDraft();
+  checkBuilder();
+  render();
+  root.querySelector(`[data-row="${CSS.escape(row.key)}"] input`)?.focus();
+}
+function builderRemove(list, key) {
+  const d = ui.builder.draft;
+  d[list] = d[list].filter((x) => x.key !== key);
+  for (const t of d.tasks) for (const f of ['people', 'resources', 'dependsOn']) t[f] = t[f].filter((k) => k !== key);
+  saveDraft();
+  checkBuilder();
+  render();
+}
+function builderToggle(taskKey, list, ref) {
+  const t = ui.builder.draft.tasks.find((x) => x.key === taskKey);
+  if (!t) return;
+  t[list] = t[list].includes(ref) ? t[list].filter((k) => k !== ref) : [...t[list], ref];
+  if (list === 'dependsOn') ui.builder.openDeps = taskKey;
+  saveDraft();
+  checkBuilder();
+  render();
+}
+function builderMove(key, dir) {
+  const ts = ui.builder.draft.tasks;
+  const i = ts.findIndex((t) => t.key === key);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ts.length) return;
+  [ts[i], ts[j]] = [ts[j], ts[i]];
+  // a task may only start after tasks listed above it
+  for (const [k, t] of ts.entries()) t.dependsOn = t.dependsOn.filter((dk) => ts.findIndex((x) => x.key === dk) < k);
+  saveDraft();
+  checkBuilder();
+  render();
+}
+function builderSave(build) {
+  checkBuilder();
+  const b = ui.builder;
+  if (!b.result.ok) { render(); return; }
+  if (build && !(b.preview && b.preview.ok)) { render(); return; }
+  const scenario = b.result.scenario;
+  if (!customStore.save(scenario)) { b.notice = 'Could not save: browser storage is unavailable or full.'; render(); return; }
+  b.draft.id = scenario.id;
+  saveDraft();
+  selectScenario(scenario.id);
+  if (build) { buildPlan('workspace'); return; }
+  b.notice = `Saved "${scenario.name}". It is now listed on Scenarios & Home.`;
+  b.confirmDelete = false;
+  render();
+}
+
 function buildPlan(targetView = 'workspace') {
   const scenario = getScenario(ui.home.scenarioId);
   const res = createSession(scenario, { overrides: overridesFor(scenario, ui.home.form), now: Date.now() });
@@ -402,9 +513,10 @@ function viewHtml(ctx) {
     case 'compare': return renderCompare(ctx);
     case 'history': return renderHistory(ctx);
     case 'settings': return renderSettings(ctx);
+    case 'create': if (!ui.builder.draft) { ui.builder.draft = loadDraft() || emptyDraft(); } if (!ui.builder.result) checkBuilder(); return renderCreate(ctx);
     default:
       if (!ui.preview) computePreview();
-      return renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
+      return renderHome({ scenarios: allScenarios(), home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
   }
 }
 
@@ -496,7 +608,7 @@ function refreshPreview() {
   const hero = root.querySelector('.home-main');
   if (hero) {
     const tmp = document.createElement('div');
-    tmp.innerHTML = renderHome({ scenarios: SCENARIOS, home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
+    tmp.innerHTML = renderHome({ scenarios: allScenarios(), home: ui.home, preview: ui.preview, session: ui.session, notice: ui.notice });
     const fresh = tmp.querySelector('.home-main');
     if (fresh) hero.replaceWith(fresh);
   }
@@ -652,6 +764,40 @@ root.addEventListener('click', (ev) => {
       else c.scrollBy({ top: (el.dataset.dir === 'up' ? -1 : 1) * Math.round(c.clientHeight * 0.75), behavior });
       break;
     }
+    case 'b-edit': {
+      const s = getScenario(el.dataset.id);
+      if (s) { ui.builder = { ...ui.builder, draft: draftFromScenario(s), result: null, preview: null, notice: '', confirmDelete: false, io: null }; saveDraft(); navigate('create'); }
+      break;
+    }
+    case 'b-new': ui.builder = { ...ui.builder, draft: emptyDraft(), result: null, preview: null, notice: '', confirmDelete: false, io: null }; saveDraft(); render(); break;
+    case 'b-example': ui.builder = { ...ui.builder, draft: exampleDraft(), result: null, preview: null, notice: 'Loaded the example. It is a template: edit anything, then save it as your own plan.', confirmDelete: false, io: null }; saveDraft(); render(); break;
+    case 'b-add': builderAdd(el.dataset.list); break;
+    case 'b-remove': builderRemove(el.dataset.list, el.dataset.key); break;
+    case 'b-toggle': builderToggle(el.dataset.key, el.dataset.list, el.dataset.ref); break;
+    case 'b-move': builderMove(el.dataset.key, Number(el.dataset.dir)); break;
+    case 'b-io':
+      ui.builder.io = el.dataset.mode === 'close' ? null : { mode: el.dataset.mode, text: el.dataset.mode === 'export' ? exportDraft(ui.builder.draft) : '', error: '' };
+      render();
+      if (ui.builder.io) root.querySelector('#b-io-text')?.focus();
+      break;
+    case 'b-import': {
+      const res = importDraft(root.querySelector('#b-io-text')?.value || '');
+      if (!res.ok) { ui.builder.io = { ...ui.builder.io, text: root.querySelector('#b-io-text')?.value || '', error: res.error }; render(); break; }
+      ui.builder = { ...ui.builder, draft: res.draft, io: null, result: null, preview: null, notice: 'Plan imported into the editor. Nothing is saved until you save it.' };
+      saveDraft(); render();
+      break;
+    }
+    case 'b-save': builderSave(el.dataset.build === '1'); break;
+    case 'b-delete': {
+      const id = ui.builder.draft.id;
+      if (!id) break;
+      if (!ui.builder.confirmDelete) { ui.builder.confirmDelete = true; render(); break; }
+      customStore.remove(id);
+      if (ui.home.scenarioId === id) selectScenario(SCENARIOS[0].id);
+      ui.builder = { ...ui.builder, draft: emptyDraft(), result: null, preview: null, confirmDelete: false, notice: 'Plan deleted. A plan already built from it keeps working until you build another.' };
+      saveDraft(); render();
+      break;
+    }
     case 'history-pick': ui.historyIndex = Number(el.dataset.index); render(); break;
     case 'undo': requestChange('Undo the last change.', 'quick', 'chat'); break;
     case 'restore': requestChange('Restore the original plan.', 'quick', 'chat'); break;
@@ -720,6 +866,7 @@ root.addEventListener('input', (ev) => {
   const el = ev.target;
   if (el.id === 'cmd') { ui.draft = el.value; return; }
   if (el.id === 'dis-text') { ui.modal.draft = el.value; return; }
+  if (el.dataset.b) { builderSet(el.dataset.b, el); return; }
   if (el.dataset.action === 'pref-volume') {
     ui.prefs.volume = Number(el.value) / 100;
     sound.setVolume(ui.prefs.volume);
@@ -738,6 +885,7 @@ root.addEventListener('input', (ev) => {
 
 root.addEventListener('change', (ev) => {
   const el = ev.target;
+  if (el.dataset.b) { builderSet(el.dataset.b, el); return; }
   if (el.dataset.field === 'm-type') {
     const slot = el.closest('form')?.querySelector('[data-slot="m-param"]');
     if (slot) slot.innerHTML = manualParam(el.value, currentRevision(ui.session));

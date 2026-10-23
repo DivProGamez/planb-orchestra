@@ -6,6 +6,8 @@ Browser (all planning happens here, works offline)
  ├─ src/views.js          screens: Home, Workspace, Assistant, Repair, Compare, History, Settings, disruption dialog
  ├─ src/components.js     pure view functions (data → escaped HTML)
  ├─ src/persistence.js    versioned localStorage envelope + migration, injectable storage
+ ├─ src/data/custom.js    user-defined plans: draft ↔ scenario, validation messages, storage, JSON import/export, example
+ ├─ src/views-create.js   "Create your own plan" editor + engine-check panel
  ├─ src/nav.js            spatial navigation + one input adapter (keyboard, remote keys, gamepad, pointer)
  ├─ src/sound.js          UI sound manager (Web Audio synthesis, unlock-on-gesture, throttle, mute/volume)
  └─ src/engine/
@@ -131,3 +133,17 @@ for which `planSchedule` returns a validated feasible plan are shown; applying o
   10009) and standard-mapping gamepads (polled only while one is connected). Key repeat never re-activates; one press
   seen by two sources at once activates once. Fields keep native editing; number fields edit with Up/Down only once
   the user is editing them; sliders keep Left/Right.
+
+## User-defined plans (`src/data/custom.js`)
+
+- The editor works on a *draft* (wall-clock times, stable row keys). `buildScenario(draft)` produces an ordinary scenario
+  object (ids from names, minutes from the start time, keywords from titles for the parser, quick commands from the
+  plan's own people, equipment and budget) and returns form problems plus `validateScenario()` errors with names
+  instead of ids. Planning, validation, shocks, diffs, persistence and Undo run unchanged.
+- Saved plans live in `localStorage` (`planb-orchestra.custom`, versioned); on load only scenarios that still pass
+  `validateScenario()` are offered. A session keeps its own scenario snapshot, so deleting a saved plan never breaks
+  a plan already built from it.
+- Engine change made for this feature: a scenario may have **no equipment** (`resources: []`). Every use of resources
+  iterates the list; the former "non-empty" rule existed only because all fixtures had equipment. Covered by a test.
+- Not supported in the editor (the engine supports them for fixtures): listed alternatives, ordering-only dependencies,
+  per-task time windows.

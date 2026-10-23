@@ -1,19 +1,19 @@
 # Test report
 
-Generated from one run of every suite on 2026-10-22T19:19Z (Windows 11, Node v24.11.0, installed Google Chrome).
+Generated from one run of every suite on 2026-10-23T00:18Z (Windows 11, Node v24.11.0, installed Google Chrome).
 Each block below is copied from that run's output; nothing is hand-written as a result.
 
 ## `npm test` (node:test) — engine, validator, parser, persistence, server, offline LLM adapter, navigation, sound
 
-Suites: planner (G1 gates), shocks/reasons, parser corpus (34 phrasings + 7 negatives), new change types,
+Suites: planner (G1 gates), custom plans (a 20-task / 6-person plan through shocks, undo and persistence; import/export; storage), shocks/reasons, parser corpus (34 phrasings + 7 negatives), new change types,
 scenario stories (all three), persistence (incl. corrupt/old/newer saved state), integration + server,
 offline LLM adapter (stub client), navigation targeting / remote keys / gamepad repeat and debounce, sound manager
 (unlock, mute, throttle, missing Web Audio), randomized audit.
 
 ```
 ℹ feasible replans checked: 911; infeasible outcomes checked: 148
-ℹ tests 92
-ℹ pass 92
+ℹ tests 104
+ℹ pass 104
 ℹ fail 0
 ```
 
@@ -136,12 +136,29 @@ Scroll audit: 74 scroll directions exercised with arrows only; 0 problem(s).
   430×932: home 1, home tasks 1, workspace 1, assistant 1, repair 1, compare 1, history 2, settings 0, dialog 0
 ```
 
+## `npm run test:create` — Create your own plan (from scratch, 20-task / 6-person example, full journey)
+
+```
+PASS  sidebar and Home open the builder; built-in scenarios still listed
+PASS  a plan typed from scratch is validated and planned by the engine
+PASS  an impossible budget is reported with the proven reason, and Save & build stays disabled
+PASS  a required task cannot depend on an optional one (engine rule shown with task names)
+PASS  save → listed on Home → build → plan is the custom one
+PASS  the 20-task / 6-person example builds and runs the full journey
+PASS  impossible budget on the custom plan: nothing committed, verified option offered
+PASS  undo, reload and history keep the custom plan
+PASS  export → import round-trip, edit and delete
+PASS  keyboard: the builder is reachable and editable without a mouse
+PASS  no console errors
+Create QA: 11 passed, 0 failed. Screenshots in evidence/create/
+```
+
 ## Production build — `npm run build` + `npm run verify:dist`
 
 ```
-Build: 18 files, 368.2 KiB → dist/
+Build: 20 files, 409.3 KiB → dist/
 Build verification passed: all local references resolve; no runtime network dependencies.
-Dist: 18 files served (HTTP 200); booted offline from dist/ and built a validated plan (66 checks).
+Dist: 20 files served (HTTP 200); booted offline from dist/ and built a validated plan (66 checks).
 Production build verified.
 ```
 

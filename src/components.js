@@ -55,6 +55,11 @@ const ICONS = {
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  download: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
+  upload: '<path d="M12 20V9M7 14l5-5 5 5"/><path d="M5 4h14"/>',
 };
 
 export function icon(name, size = 18, cls = '') {
@@ -62,18 +67,19 @@ export function icon(name, size = 18, cls = '') {
 }
 
 const SCENARIO_ICONS = {
+  __custom: '<path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z"/>',
   'dinner-for-six': '<circle cx="13" cy="13" r="6.5"/><circle cx="13" cy="13" r="3.2"/><path d="M3 3.5v6M5.2 3.5v6M3 7h2.2M4.1 9.5V21M22 3.5c-1.6 1-2.2 3.2-2.2 5.6h2.2V21"/>',
   'childrens-birthday': '<path d="M12 2.8c-3.4 0-6.1 2.7-6.1 6.1 0 3.9 3.4 7.2 6.1 7.2s6.1-3.3 6.1-7.2c0-3.4-2.7-6.1-6.1-6.1z"/><path d="M10.9 16.1l1.1 1.7 1.1-1.7M12 17.8c0 2.2-2.2 2.1-2.2 4.4"/><path d="M9.2 7.2c.4-1.1 1.2-1.9 2.3-2.2"/>',
   'weekend-outing': '<path d="M1.5 18c2 0 2-1.4 4-1.4s2 1.4 4 1.4 2-1.4 4-1.4 2 1.4 4 1.4 2-1.4 4-1.4"/><path d="M3.5 13.2l15-4.3 2.2 1.1-15 4.3z"/><path d="M9 11.5l3.5 6"/><circle cx="18.5" cy="4.5" r="2"/>',
 };
 
 export function scenarioIcon(id, size = 22) {
-  const body = SCENARIO_ICONS[id];
+  const body = SCENARIO_ICONS[id] || (String(id).startsWith('custom-') ? SCENARIO_ICONS.__custom : null);
   if (!body) return '';
   return `<svg class="s-icon" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-const PERSON_COLORS = ['#8083ff', '#4cd7f6', '#4edea3', '#f5b041', '#f472b6'];
+const PERSON_COLORS = ['#8083ff', '#4cd7f6', '#4edea3', '#f5b041', '#f472b6', '#a3e635', '#fb923c', '#c084fc', '#2dd4bf', '#facc15', '#f87171', '#60a5fa'];
 export function personColor(scenario, personId) {
   const i = scenario.people.findIndex((p) => p.id === personId);
   return PERSON_COLORS[(i < 0 ? 0 : i) % PERSON_COLORS.length];

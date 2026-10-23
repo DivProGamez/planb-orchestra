@@ -79,6 +79,13 @@ page scrolling; long content scrolls inside its panel.
 - **Top bar:** scenario with its current revision and validated state, a short *Simulated Alexa+ demo* pill and the
   parser actually in use (engine details live in Settings & Transparency), a command
   box ("Tell PlanB what changed…"), simulation clock, Undo and **Simulate disruption**.
+- **Create your own plan:** an editor for your own event — name, start, deadline and its meaning, budget; people with
+  availability windows; optional equipment with capacity; tasks with duration, shortest acceptable duration, cost,
+  priority (must / should / optional), who can do them (or "runs on its own" with equipment) and which earlier tasks they
+  start after. The same engine re-plans and validates it as you type and shows a preview or the exact reason it cannot
+  work. Saved plans (this browser only) appear on Home beside the built-in scenarios and use the whole flow — review
+  before replanning, Before/After, Repair, Undo, history, reload. Includes JSON export/import and a 20-task, 6-person
+  example template.
 - **Home:** selected-scenario hero with real baseline stats, scenario cards, a **live preview** that re-plans as you
   change the deadline, budget, helpers or equipment, and the constraints form.
 - **Plan Workspace:** KPI row, recovery banner, toolbar (viewport, clock), the **timeline canvas** as the centerpiece

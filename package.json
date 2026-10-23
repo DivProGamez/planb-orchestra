@@ -21,7 +21,8 @@
     "test:scroll": "node tests/smoke/scroll-qa.mjs",
     "build": "node scripts/build.mjs",
     "start:dist": "node server/start-dist.mjs",
-    "verify:dist": "node scripts/verify-dist.mjs"
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "test:create": "node tests/smoke/create-qa.mjs"
   },
   "dependencies": {
     "express": "5.1.0"
